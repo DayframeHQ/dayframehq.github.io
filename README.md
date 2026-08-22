@@ -219,7 +219,7 @@ https://dayframehq.github.io
 
 ## Current limitations
 
-- The primary gada/progress mark and alternate winged-athlete mark are stored as two-colour SVGs in `public/brand/`.
+- The primary winged-athlete mark and alternate gada/progress mark are stored as two-colour SVGs in `public/brand/`.
 - Browser notifications cannot guarantee background delivery. Reliable push requires a server-side scheduler plus Web Push/FCM.
 - Wearable, Apple Health, barcode, restaurant and nutrition-provider integrations are adapter placeholders, not V1 claims.
 - Offline writes use a simple ordered queue. Concurrent edits across several offline devices are not merged with CRDT semantics.
@@ -235,7 +235,7 @@ https://dayframehq.github.io
 
 ## Brand assets
 
-- `public/brand/dayframe-gada.svg` — primary logo and app icon
-- `public/brand/dayframe-athlete.svg` — approved alternate winged-athlete logo
+- `public/brand/dayframe-athlete.svg` — primary logo and app icon
+- `public/brand/dayframe-gada.svg` — approved alternate logo
 
 Both assets use only Obsidian `#181513` and Porcelain `#F5F0E7`.

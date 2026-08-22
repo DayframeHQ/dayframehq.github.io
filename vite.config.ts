@@ -20,7 +20,7 @@ export default defineConfig({
         start_url: './',
         icons: [
           {
-            src: 'brand/dayframe-gada.svg',
+            src: 'brand/dayframe-athlete.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any maskable',
