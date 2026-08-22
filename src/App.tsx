@@ -13,9 +13,10 @@ import { supabase } from './lib/supabase'
 
 const TodayPage = lazy(() => import('./pages/TodayPage').then((module) => ({ default: module.TodayPage })))
 const TrainPage = lazy(() => import('./pages/TrainPage').then((module) => ({ default: module.TrainPage })))
+const StudyPage = lazy(() => import('./pages/StudyPage').then((module) => ({ default: module.StudyPage })))
 const FoodPage = lazy(() => import('./pages/FoodPage').then((module) => ({ default: module.FoodPage })))
 const LifePage = lazy(() => import('./pages/LifePage').then((module) => ({ default: module.LifePage })))
-const InsightsPage = lazy(() => import('./pages/InsightsPage').then((module) => ({ default: module.InsightsPage })))
+const ProgressPage = lazy(() => import('./pages/ProgressPage').then((module) => ({ default: module.ProgressPage })))
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })))
 const HealthPage = lazy(() => import('./pages/HealthPage').then((module) => ({ default: module.HealthPage })))
 
@@ -96,9 +97,12 @@ function MainApp({ dataKey }: { dataKey: string }) {
           <Routes>
             <Route path="/" element={<TodayPage />} />
             <Route path="/train" element={<TrainPage />} />
-            <Route path="/food" element={<FoodPage />} />
+            <Route path="/study" element={<StudyPage />} />
+            <Route path="/nutrition" element={<FoodPage />} />
+            <Route path="/food" element={<Navigate to="/nutrition" replace />} />
             <Route path="/life" element={<LifePage />} />
-            <Route path="/insights" element={<InsightsPage />} />
+            <Route path="/progress" element={<ProgressPage />} />
+            <Route path="/insights" element={<Navigate to="/progress" replace />} />
             <Route path="/health" element={<HealthPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

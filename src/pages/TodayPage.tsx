@@ -1,121 +1,30 @@
-import { addDays, format, isSameDay, startOfWeek, subDays } from 'date-fns'
-import { Activity, ArrowRight, BedDouble, CalendarDays, Check, ChevronLeft, ChevronRight, CircleUserRound, Droplets, Dumbbell, Footprints, HeartPulse, Leaf, Moon, Scale } from 'lucide-react'
+import { addDays, format, isSameDay, startOfWeek } from 'date-fns'
+import { ArrowRight, BedDouble, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, Droplets, Dumbbell, Footprints, HeartPulse, Utensils } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../context/DataContext'
+import { useNutritionSummary, usePlannedSessions, useReviews } from '../hooks/useV2'
+import { dateKey, nutritionTotal } from '../lib/v2'
 
-const schedules: Record<number, { name: string; detail: string }> = {
-  2: { name: 'Upper A', detail: 'Back emphasis · 8 exercises' },
-  4: { name: 'Lower A', detail: 'Quad emphasis · 6 exercises' },
-  6: { name: 'Upper B', detail: 'Push emphasis · 9 exercises' },
-  0: { name: 'Lower B + Core', detail: '7 exercises · 55–70 min' },
-}
-
-export function TodayPage() {
-  const data = useData()
-  const navigate = useNavigate()
-  const date = data.selectedDate
-  const schedule = data.workout.length ? schedules[date.getDay()] : undefined
-  const totals = data.meals.reduce((sum, meal) => ({ calories: sum.calories + meal.calories, protein: sum.protein + meal.protein, carbs: sum.carbs + meal.carbs, fat: sum.fat + meal.fat }), { calories: 0, protein: 0, carbs: 0, fat: 0 })
-  const activeReminders = data.reminders.filter((item) => !item.completed)
-  const completion = Math.round(([totals.protein >= 120, data.daily.steps >= 7000, data.daily.waterMl >= 1800, data.daily.sleepHours >= 7, activeReminders.length === 0].filter(Boolean).length / 5) * 100)
-  const weekStart = startOfWeek(date, { weekStartsOn: 1 })
-
-  return (
-    <div className="page">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">{format(date, 'EEEE, MMMM d')}</p>
-          <h1>{greeting()}, there.</h1>
-          <p className="muted">Here’s the shape of your day.</p>
-        </div>
-        <button className="btn btn-secondary btn-icon" type="button" onClick={() => navigate('/settings')} aria-label="Open profile and settings"><CircleUserRound size={22} /></button>
-      </header>
-
-      <div className="row-between" style={{ marginBottom: 10 }}>
-        <button className="btn btn-ghost btn-icon" type="button" onClick={() => data.setSelectedDate(subDays(date, 1))} aria-label="Previous day"><ChevronLeft /></button>
-        <label className="btn btn-secondary" style={{ position: 'relative', cursor: 'pointer' }}><CalendarDays size={17} /><span>{isSameDay(date, new Date()) ? 'Today' : format(date, 'MMM d')}</span><input type="date" aria-label="Select date" value={format(date, 'yyyy-MM-dd')} onChange={(event) => data.setSelectedDate(new Date(`${event.target.value}T12:00:00`))} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} /></label>
-        <button className="btn btn-ghost btn-icon" type="button" onClick={() => data.setSelectedDate(addDays(date, 1))} aria-label="Next day"><ChevronRight /></button>
-      </div>
-
-      <div className="calendar-strip" aria-label="Week selector">
-        {Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)).map((day) => <button key={day.toISOString()} className={`calendar-day ${isSameDay(day, date) ? 'active' : ''}`} type="button" onClick={() => data.setSelectedDate(day)}><span className="tiny">{format(day, 'EEE').slice(0, 2)}</span><strong>{format(day, 'd')}</strong></button>)}
-      </div>
-
-      <section className="card today-hero section">
-        <div className="hero-top">
-          <div>
-            <span className="badge" style={{ color: '#F5F0E7', background: 'rgba(245,240,231,.12)' }}><Dumbbell size={12} /> Training</span>
-            <p className="muted small" style={{ margin: '12px 0 0' }}>{schedule ? 'Scheduled today' : 'No resistance session scheduled'}</p>
-          </div>
-          <span className="tiny muted">{schedule ? '0% complete' : 'Recovery day'}</span>
-        </div>
-        <div className="hero-workout">
-          <div><h2>{schedule?.name ?? 'Recovery day'}</h2><p className="muted small" style={{ margin: 0 }}>{schedule?.detail ?? 'Walk, recover and prepare for the next session'}</p></div>
-          <button className="btn btn-primary" type="button" onClick={() => navigate('/train')}>{schedule ? 'Start' : 'View plan'} <ArrowRight size={17} /></button>
-        </div>
-      </section>
-
-      <div className="grid-2 section">
-        <section className="card card-pad">
-          <div className="row-between"><div className="row"><span className="icon-bubble"><Leaf size={20} /></span><div><h2 style={{ margin: 0 }}>Nutrition</h2><span className="muted tiny">Today’s intake</span></div></div><button className="link-button small" type="button" onClick={() => navigate('/food')}>Details</button></div>
-          <div style={{ marginTop: 20 }}><div className="row-between"><strong style={{ fontSize: 24 }}>{totals.calories.toLocaleString()} <span className="muted small">/ 2,200 kcal</span></strong><span className="badge">{Math.round((totals.calories / 2200) * 100)}%</span></div><div className="progress-track" style={{ marginTop: 10 }}><div className="progress-fill" style={{ width: `${Math.min(100, totals.calories / 22)}%` }} /></div></div>
-          <div className="macro-row">
-            <Macro label="Protein" value={totals.protein} target={140} />
-            <Macro label="Carbs" value={totals.carbs} target={240} />
-            <Macro label="Fat" value={totals.fat} target={70} />
-            <Macro label="Fiber" value={22} target={30} />
-          </div>
-        </section>
-
-        <section className="card card-pad">
-          <div className="row"><span className="icon-bubble"><Activity size={20} /></span><div><h2 style={{ margin: 0 }}>Movement</h2><span className="muted tiny">Keep the day in motion</span></div></div>
-          <div className="grid-3" style={{ marginTop: 22 }}>
-            <Metric icon={<Footprints size={16} />} value={data.daily.steps.toLocaleString()} label="steps" />
-            <Metric icon={<Activity size={16} />} value={`${data.daily.walkingMinutes}m`} label="walking" />
-            <Metric icon={<Droplets size={16} />} value={`${(data.daily.waterMl / 1000).toFixed(1)}L`} label="water" />
-          </div>
-        </section>
-      </div>
-
-      <div className="grid-2 section">
-        <section className="card card-pad">
-          <div className="row-between"><div className="row"><span className="icon-bubble"><Moon size={20} /></span><div><h2 style={{ margin: 0 }}>Recovery</h2><span className="muted tiny">Your readiness signals</span></div></div><span className="badge">Steady</span></div>
-          <div className="grid-3" style={{ marginTop: 20 }}>
-            <Metric icon={<BedDouble size={16} />} value={`${data.daily.sleepHours}h`} label="sleep" />
-            <Metric icon={<HeartPulse size={16} />} value={data.daily.pain ? `${data.daily.pain.score}/10` : '—'} label="pain" />
-            <Metric icon={<Scale size={16} />} value={data.daily.weight ? `${data.daily.weight} kg` : '—'} label="weight" />
-          </div>
-          {data.daily.pain && data.daily.pain.score >= 5 && <div className="insight-callout small" style={{ marginTop: 16 }}>Pain is elevated today. Consider reducing or substituting movements that aggravate it. This is not a diagnosis.</div>}
-        </section>
-
-        <section className="card card-pad">
-          <div className="row-between"><div><h2 style={{ marginBottom: 3 }}>Daily frame</h2><span className="muted tiny">A quiet progress summary</span></div><strong style={{ fontSize: 26 }}>{completion}%</strong></div>
-          <div className="progress-track" style={{ margin: '18px 0 16px' }}><div className="progress-fill" style={{ width: `${completion}%` }} /></div>
-          <p className="muted small" style={{ margin: 0 }}>{completion >= 80 ? 'The essentials are in place. Anything else is extra.' : 'A few useful anchors remain — no need for a perfect day.'}</p>
-        </section>
-      </div>
-
-      <section className="section">
-        <div className="section-title"><h2>Reminders</h2><button className="link-button small" type="button">View all</button></div>
-        <div className="card card-pad">
-          {data.reminders.length === 0 ? <div className="empty-state">Nothing due today. Your day is clear.</div> : data.reminders.map((reminder) => <div className="row-between" key={reminder.id} style={{ padding: '9px 0', opacity: reminder.completed ? .5 : 1 }}><div className="row"><button className={`check ${reminder.completed ? 'checked' : ''}`} type="button" onClick={() => data.toggleReminder(reminder.id)} aria-label={`Mark ${reminder.title} ${reminder.completed ? 'incomplete' : 'complete'}`}>{reminder.completed && <Check size={15} />}</button><div><strong className="small" style={{ textDecoration: reminder.completed ? 'line-through' : 'none' }}>{reminder.title}</strong><div className="muted tiny">{reminder.category}</div></div></div><span className="muted small">{reminder.time}</span></div>)}
-        </div>
-      </section>
+export function TodayPage(){
+  const data=useData();const navigate=useNavigate();const date=data.selectedDate;const key=dateKey(date);const start=dateKey(startOfWeek(date,{weekStartsOn:1}));const end=dateKey(addDays(new Date(`${start}T12:00:00`),6))
+  const planned=usePlannedSessions(key,key);const reviews=useReviews(key,key);const summary=useNutritionSummary(key)
+  const train=planned.data?.find((item)=>item.domain==='train');const study=planned.data?.find((item)=>item.domain==='study');const nutrition=nutritionTotal(summary.data,data.meals.map((meal)=>({...meal,fiber:0})))
+  const reminders=data.reminders.filter((item)=>!item.completed).slice(0,3)
+  return <div className="page">
+    <header className="page-header"><div><p className="eyebrow">{format(date,'EEEE, MMMM d')}</p><h1>{isSameDay(date,new Date())?'Today, clearly.':'Your day in context.'}</h1><p className="muted">Train consistently. Study consistently. See whether you are progressing.</p></div><button className="btn btn-secondary btn-icon" aria-label="Today calendar"><CalendarDays size={19}/></button></header>
+    <CalendarStrip date={date} onChange={data.setSelectedDate}/>
+    {(planned.error||summary.error)&&<div className="auth-message section"><strong>V2 database update needed.</strong><br/><span className="small">Apply migrations 202608220002 and 202608220003 in Supabase, then reload. Existing V1 data remains safe.</span></div>}
+    <div className="today-focus-grid section">
+      <FocusCard icon={<Dumbbell size={20}/>} label="Train" title={train?.title??'No workout scheduled'} detail={train?`${train.estimated_minutes??60} min · ${train.status.replace('_',' ')}`:'Choose or schedule a program in Train.'} action={train?.status==='active'?'Resume':'Open Train'} onClick={()=>navigate('/train')} status={train?.status}/>
+      <FocusCard icon={<BookOpen size={20}/>} label="Study" title={study?.title??'No study session scheduled'} detail={study?`${study.estimated_minutes??60} min · ${study.planned_items?.length??0} tasks${reviews.data?.length?` · ${reviews.data.length} review due`:''}`:'Choose a roadmap or plan the next block.'} action={study?.status==='active'?'Resume':'Open Study'} onClick={()=>navigate('/study')} status={study?.status}/>
     </div>
-  )
+    <section className="section"><div className="section-title"><h2>Health context</h2><div className="row" style={{gap:12}}><button className="link-button small" onClick={()=>navigate('/nutrition')}>Nutrition</button><button className="link-button small" onClick={()=>navigate('/health')}>Health</button></div></div><div className="card card-pad compact-health">
+      <MiniMetric icon={<BedDouble/>} value={data.daily.sleepHours?`${data.daily.sleepHours.toFixed(1)} h`:'—'} label="sleep"/><MiniMetric icon={<Footprints/>} value={data.daily.steps.toLocaleString()} label="steps"/><MiniMetric icon={<Droplets/>} value={`${data.daily.waterMl} ml`} label="water"/><MiniMetric icon={<Utensils/>} value={nutrition.calories?`${Math.round(nutrition.calories)}`:'—'} label={nutrition.source==='summary'?'kcal · summary':'kcal · itemized'}/>
+    </div></section>
+    <section className="section"><div className="section-title"><h2>Life reminders</h2><button className="link-button small" onClick={()=>navigate('/life')}>Open Life <ArrowRight size={14}/></button></div><div className="card card-pad">{reminders.length?reminders.map((item)=><button className="reminder-row" key={item.id} onClick={()=>data.toggleReminder(item.id)}><span className={`check ${item.completed?'checked':''}`}>{item.completed&&<Check size={14}/>}</span><span><strong>{item.title}</strong><span className="tiny muted">{item.time??item.category}</span></span></button>):<div className="empty-state"><HeartPulse size={24}/><p>No open reminders for this day.</p></div>}</div></section>
+    <p className="tiny muted section">Week shown: {format(new Date(`${start}T12:00:00`),'MMM d')}–{format(new Date(`${end}T12:00:00`),'MMM d')}. Historical dates remain editable from the strip above.</p>
+  </div>
 }
-
-function Macro({ label, value, target }: { label: string; value: number; target: number }) {
-  return <div className="macro"><strong>{Math.round(value)}g</strong><span>{label} · {target}g</span><div className="macro-bar"><i style={{ width: `${Math.min(100, (value / target) * 100)}%` }} /></div></div>
-}
-
-function Metric({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
-  return <div className="metric"><span className="row muted" style={{ gap: 5 }}>{icon}<span className="tiny">{label}</span></span><span className="metric-value" style={{ marginTop: 5 }}>{value}</span></div>
-}
-
-function greeting() {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 17) return 'Good afternoon'
-  return 'Good evening'
-}
+function FocusCard({icon,label,title,detail,action,onClick,status}:{icon:React.ReactNode;label:string;title:string;detail:string;action:string;onClick:()=>void;status?:string}){return <article className="card focus-card"><div className="row-between"><span className="icon-bubble">{icon}</span>{status&&<span className="badge badge-neutral">{status.replace('_',' ')}</span>}</div><div><p className="eyebrow">{label}</p><h2>{title}</h2><p className="muted small">{detail}</p></div><button className="btn btn-primary" onClick={onClick}>{action}<ArrowRight size={16}/></button></article>}
+function MiniMetric({icon,value,label}:{icon:React.ReactNode;value:string;label:string}){return <div className="mini-metric"><span>{icon}</span><strong>{value}</strong><small>{label}</small></div>}
+function CalendarStrip({date,onChange}:{date:Date;onChange:(date:Date)=>void}){const start=startOfWeek(date,{weekStartsOn:1});return <div className="row-between"><button className="btn btn-ghost btn-icon" aria-label="Previous week" onClick={()=>onChange(addDays(date,-7))}><ChevronLeft/></button><div className="calendar-strip">{Array.from({length:7},(_,index)=>addDays(start,index)).map((day)=><button className={`calendar-day ${isSameDay(day,date)?'active':''}`} key={day.toISOString()} onClick={()=>onChange(day)}><span className="tiny">{format(day,'EEE')}</span><strong>{format(day,'d')}</strong></button>)}</div><button className="btn btn-ghost btn-icon" aria-label="Next week" onClick={()=>onChange(addDays(date,7))}><ChevronRight/></button></div>}

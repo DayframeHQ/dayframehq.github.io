@@ -71,7 +71,7 @@ export function DataProvider({ children }: PropsWithChildren) {
         client.from('reminders').select('*').or(`due_at.gte.${dateKey}T00:00:00,due_at.is.null`).order('due_at'),
         client.from('goals').select('*').order('created_at'),
         client.from('travel_plans').select('*').order('created_at'),
-        client.from('activity_logs').select('*').eq('activity_date', dateKey),
+        client.from('activity_logs').select('*').eq('activity_date', dateKey).order('created_at', { ascending: false }),
         client.from('sleep_logs').select('*').eq('sleep_date', dateKey).order('created_at', { ascending: false }).limit(1),
         client.from('recovery_logs').select('*').eq('log_date', dateKey).order('created_at', { ascending: false }).limit(1),
         client.from('body_measurements').select('*').gte('measured_at', `${dateKey}T00:00:00`).lte('measured_at', `${dateKey}T23:59:59`).order('measured_at', { ascending: false }).limit(1),
@@ -92,7 +92,7 @@ export function DataProvider({ children }: PropsWithChildren) {
         daily: {
           waterMl: Number(recovery?.hydration_ml ?? 0),
           steps: Number(activities.find((item) => item.activity_type === 'steps')?.steps ?? 0),
-          walkingMinutes: activities.filter((item) => item.activity_type === 'walk').reduce((sum, item) => sum + Number(item.duration_minutes ?? 0), 0),
+          walkingMinutes: Number(activities.find((item) => item.activity_type === 'walk')?.duration_minutes ?? 0),
           sleepHours: Number(sleep?.duration_minutes ?? 0) / 60,
           sleepQuality: Number(sleep?.quality ?? 0),
           weight: body?.weight_kg ? Number(body.weight_kg) : undefined,
@@ -155,22 +155,42 @@ export function DataProvider({ children }: PropsWithChildren) {
       void persist('travel_plans', { id: item.id, destination, country, status: 'Wishlist' })
     },
     updateSet: (exerciseId: string, setId: string, field: 'weight' | 'reps' | 'rir' | 'completed', next: number | boolean) => setData((current) => ({ ...current, workout: current.workout.map((exercise) => exercise.id !== exerciseId ? exercise : { ...exercise, sets: exercise.sets.map((item) => item.id === setId ? { ...item, [field]: next } : item) }) })),
+    loadWorkoutFromPlan: async (items: Array<{ id: string; title: string; metadata: Record<string, unknown> }>) => {
+      const mapped: WorkoutExercise[] = items.map((item) => {
+        const sets = Number(item.metadata.sets ?? 3); const repMin = Number(item.metadata.rep_min ?? 8); const repMax = Number(item.metadata.rep_max ?? 12)
+        return { id: item.id, name: item.title, repRange: `${repMin}–${repMax} reps`, previous: 'No prior performance', sets: Array.from({ length: sets }, () => ({ id: crypto.randomUUID(), weight: 0, reps: 0, rir: Number(item.metadata.target_rir ?? 2), completed: false })) }
+      })
+      setData((current) => ({ ...current, workout: mapped }))
+      if (!auth.isDemo && supabase && auth.user) {
+        const client=supabase
+        const enriched=await Promise.all(mapped.map(async(exercise)=>{
+          const searchName=exercise.name.split(/\s+\/\s+|\s+or\s+/i)[0]
+          const {data:reference}=await client.from('exercises').select('id').ilike('name',searchName).limit(1).maybeSingle()
+          if(!reference)return exercise
+          const {data:last}=await client.from('set_logs').select('weight,reps,rir,performed_at,exercise_logs!inner(exercise_id)').eq('exercise_logs.exercise_id',reference.id).eq('completed',true).order('performed_at',{ascending:false}).limit(1).maybeSingle()
+          return last?{...exercise,previous:`${Number(last.weight)} kg × ${last.reps} · ${last.rir ?? '—'} RIR`}:exercise
+        }))
+        setData((current)=>({...current,workout:enriched}))
+      }
+    },
     copyStarterTemplate: () => {
       setData((current) => ({ ...current, workout: demoWorkout.map((exercise) => ({ ...exercise, sets: exercise.sets.map((item) => ({ ...item })) })) }))
       void persist('workout_programs', { name: '4-Day Recomp — Upper/Lower', description: 'Copied from the public Dayframe template', is_active: true, start_date: dateKey })
     },
-    saveWorkout: async () => {
+    saveWorkout: async (plannedSessionId?: string) => {
       if (auth.isDemo || !auth.user || !supabase) return
-      const { data: session, error } = await supabase.from('workout_sessions').insert({ user_id: auth.user.id, session_date: dateKey, started_at: new Date().toISOString(), completed_at: new Date().toISOString(), status: 'completed' }).select('id').single()
+      const { data: session, error } = await supabase.from('workout_sessions').insert({ user_id: auth.user.id, planned_session_id: plannedSessionId ?? null, session_date: dateKey, started_at: new Date().toISOString(), completed_at: new Date().toISOString(), status: 'completed' }).select('id').single()
       if (error || !session) throw error ?? new Error('Could not create workout session')
       for (const [index, exercise] of data.workout.entries()) {
-        const { data: exerciseRow } = await supabase.from('exercises').select('id').ilike('name', exercise.name).limit(1).maybeSingle()
-        if (!exerciseRow) continue
+        const searchName=exercise.name.split(/\s+\/\s+|\s+or\s+/i)[0]
+        let { data: exerciseRow } = await supabase.from('exercises').select('id').ilike('name', searchName).limit(1).maybeSingle()
+        if (!exerciseRow) { const created=await supabase.from('exercises').insert({user_id:auth.user.id,name:exercise.name,category:'Custom',is_system:false}).select('id').single();if(created.error)throw created.error;exerciseRow=created.data }
         const { data: log, error: logError } = await supabase.from('exercise_logs').insert({ user_id: auth.user.id, workout_session_id: session.id, exercise_id: exerciseRow.id, position: index }).select('id').single()
         if (logError || !log) continue
         const rows = exercise.sets.filter((set) => set.completed).map((set, setIndex) => ({ user_id: auth.user!.id, exercise_log_id: log.id, set_number: setIndex + 1, weight: set.weight, reps: set.reps, rir: set.rir, completed: true, performed_at: new Date().toISOString() }))
         if (rows.length) await supabase.from('set_logs').insert(rows)
       }
+      if(plannedSessionId)await supabase.from('planned_sessions').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',plannedSessionId)
     },
     resetDemo: () => setData({ ...demoDefaults, daily: { ...demoDaily }, meals: [...demoMeals], reminders: [...demoReminders], goals: [...demoGoals], trips: [...demoTrips], workout: demoWorkout.map((exercise) => ({ ...exercise, sets: exercise.sets.map((item) => ({ ...item })) })) }),
   }), [auth.isDemo, auth.user, data, dateKey, persist, selectedDate, syncPending])

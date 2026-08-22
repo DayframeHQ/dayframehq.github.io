@@ -1,149 +1,24 @@
-import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Activity, Apple, Bell, Bike, CookingPot, Dumbbell, Footprints, GlassWater, HeartPulse, Map, Moon, NotebookPen, Plus, Ruler, Salad, Scale, Sparkles, Utensils, Waves, Weight, Zap } from 'lucide-react'
+import { useMemo, useState, type FormEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Activity, Bell, BookOpen, ChevronLeft, Dumbbell, Footprints, GlassWater, HeartPulse, Map, Moon, NotebookPen, Plus, Scale, Sparkles, Target, Utensils } from 'lucide-react'
 import { Sheet } from './Sheet'
 import { useData } from '../context/DataContext'
+import { quickAddCategories } from '../lib/v2'
 
-const actions = [
-  { id: 'workout', label: 'Workout', icon: Dumbbell },
-  { id: 'set', label: 'Exercise / set', icon: Weight },
-  { id: 'meal', label: 'Meal', icon: Utensils },
-  { id: 'food', label: 'Custom food', icon: Apple },
-  { id: 'recipe', label: 'Recipe', icon: CookingPot },
-  { id: 'water', label: 'Water', icon: GlassWater },
-  { id: 'walk', label: 'Walk', icon: Footprints },
-  { id: 'swim', label: 'Swimming', icon: Waves },
-  { id: 'steps', label: 'Steps', icon: Activity },
-  { id: 'sauna', label: 'Sauna', icon: Zap },
-  { id: 'steam', label: 'Steam', icon: Sparkles },
-  { id: 'sleep', label: 'Sleep', icon: Moon },
-  { id: 'weight', label: 'Bodyweight', icon: Scale },
-  { id: 'measurement', label: 'Measurement', icon: Ruler },
-  { id: 'pain', label: 'Pain', icon: HeartPulse },
-  { id: 'supplement', label: 'Supplement', icon: Salad },
-  { id: 'reminder', label: 'Reminder', icon: Bell },
-  { id: 'note', label: 'Note', icon: NotebookPen },
-  { id: 'goal', label: 'Goal', icon: Bike },
-  { id: 'travel', label: 'Travel item', icon: Map },
-] as const
-
-type ActionId = typeof actions[number]['id']
-
-interface QuickAddProps {
-  open: boolean
-  onClose: () => void
-  onSaved: (message: string) => void
+type Category=typeof quickAddCategories[number]
+type ActionId='start_workout'|'walk'|'study_session'|'study_task'|'study_note'|'review'|'meal'|'summary'|'water'|'steps'|'sleep'|'weight'|'pain'|'reminder'|'goal'|'travel'|'life_note'
+const actions:Record<Exclude<Category,'Recent'>,Array<{id:ActionId;label:string;icon:typeof Dumbbell}>>={
+  Train:[{id:'start_workout',label:'Start workout',icon:Dumbbell},{id:'walk',label:'Walk',icon:Footprints}],
+  Study:[{id:'study_session',label:'Study session',icon:BookOpen},{id:'study_task',label:'Problem / task',icon:Target},{id:'study_note',label:'Study note',icon:NotebookPen},{id:'review',label:'Review',icon:Sparkles}],
+  Health:[{id:'meal',label:'Nutrition',icon:Utensils},{id:'water',label:'Water',icon:GlassWater},{id:'steps',label:'Steps',icon:Activity},{id:'sleep',label:'Sleep',icon:Moon},{id:'weight',label:'Bodyweight',icon:Scale},{id:'pain',label:'Pain',icon:HeartPulse}],
+  Life:[{id:'reminder',label:'Reminder',icon:Bell},{id:'goal',label:'Goal',icon:Target},{id:'travel',label:'Travel',icon:Map},{id:'life_note',label:'Note',icon:NotebookPen}],
 }
+const byId=Object.values(actions).flat().reduce<Record<string,{id:ActionId;label:string;icon:typeof Dumbbell}>>((all,item)=>({...all,[item.id]:item}),{})
 
-export function QuickAdd({ open, onClose, onSaved }: QuickAddProps) {
-  const [selected, setSelected] = useState<ActionId | null>(null)
-  const data = useData()
-  const navigate = useNavigate()
-
-  const close = () => {
-    setSelected(null)
-    onClose()
-  }
-
-  const choose = (id: ActionId) => {
-    if (id === 'workout' || id === 'set') {
-      close()
-      navigate('/train')
-      return
-    }
-    if (id === 'travel') {
-      close()
-      navigate('/life')
-      return
-    }
-    setSelected(id)
-  }
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const values = Object.fromEntries(new FormData(event.currentTarget))
-    const amount = Number(values.amount || 0)
-    if (selected === 'water') data.updateDaily({ waterMl: data.daily.waterMl + amount })
-    if (selected === 'walk') data.updateDaily({ walkingMinutes: data.daily.walkingMinutes + amount })
-    if (selected === 'steps') data.updateDaily({ steps: amount })
-    if (selected === 'sleep') data.updateDaily({ sleepHours: amount, sleepQuality: Number(values.quality || 3) })
-    if (selected === 'weight') data.updateDaily({ weight: amount })
-    if (selected === 'pain') data.updateDaily({ pain: { score: amount, location: String(values.location || 'Not specified'), note: String(values.note || '') } })
-    if (selected === 'reminder') data.addReminder(String(values.title), String(values.time || ''))
-    if (selected === 'goal') data.addGoal(String(values.title), String(values.category || 'Personal'))
-    if (selected === 'meal' || selected === 'food' || selected === 'recipe') {
-      data.addMeal({
-        name: String(values.title),
-        meal: String(values.meal || 'Snack') as 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack',
-        calories: Number(values.calories || 0),
-        protein: Number(values.protein || 0),
-        carbs: Number(values.carbs || 0),
-        fat: Number(values.fat || 0),
-        source: 'user_entered',
-      })
-    }
-    onSaved(`${actions.find((item) => item.id === selected)?.label ?? 'Entry'} saved`)
-    close()
-  }
-
-  return (
-    <Sheet open={open} onClose={close} title={selected ? `Log ${actions.find((item) => item.id === selected)?.label.toLowerCase()}` : 'Quick add'} description={selected ? 'Saved to the selected day.' : 'Everything you track, one tap away.'}>
-      {!selected ? (
-        <div className="quick-grid">
-          {actions.map(({ id, label, icon: Icon }) => (
-            <button className="quick-item" type="button" key={id} onClick={() => choose(id)}>
-              <Icon size={21} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <form className="form-grid" onSubmit={submit}>
-          {(selected === 'meal' || selected === 'food' || selected === 'recipe') && <MealFields />}
-          {selected === 'water' && <NumberField label="Amount (ml)" name="amount" defaultValue="350" />}
-          {(selected === 'walk' || selected === 'swim' || selected === 'sauna' || selected === 'steam') && <NumberField label="Duration (minutes)" name="amount" defaultValue="20" />}
-          {selected === 'steps' && <NumberField label="Step count" name="amount" defaultValue={String(data.daily.steps)} />}
-          {selected === 'sleep' && <>
-            <NumberField label="Duration (hours)" name="amount" defaultValue="7.5" step="0.1" />
-            <NumberField label="Quality (1–5)" name="quality" defaultValue="4" min="1" max="5" />
-          </>}
-          {selected === 'weight' && <NumberField label="Bodyweight (kg)" name="amount" step="0.1" placeholder="e.g. 72.4" />}
-          {selected === 'measurement' && <>
-            <label className="field"><span>Measurement</span><select className="select" name="kind"><option>WHO-standard waist</option><option>Navel circumference</option><option>Lower abdomen</option><option>Chest</option><option>Hips</option><option>Arms</option><option>Thighs</option></select></label>
-            <NumberField label="Value (cm)" name="amount" step="0.1" placeholder="e.g. 82.5" />
-          </>}
-          {selected === 'pain' && <>
-            <NumberField label="Pain score (0–10)" name="amount" min="0" max="10" defaultValue="2" />
-            <label className="field"><span>Body location</span><input className="input" name="location" placeholder="e.g. lower back" required /></label>
-            <label className="field"><span>Notes (optional)</span><textarea className="textarea" name="note" placeholder="What were you doing?" /></label>
-          </>}
-          {(selected === 'reminder' || selected === 'goal') && <label className="field"><span>Title</span><input className="input" name="title" placeholder={selected === 'goal' ? 'What do you want to achieve?' : 'What should you remember?'} required /></label>}
-          {selected === 'reminder' && <label className="field"><span>Time (optional)</span><input className="input" type="time" name="time" /></label>}
-          {selected === 'goal' && <label className="field"><span>Category</span><select className="select" name="category"><option>Fitness</option><option>Career</option><option>Money</option><option>Learning</option><option>Personal</option><option>Relationships</option><option>Travel</option><option>Projects</option></select></label>}
-          {(selected === 'note' || selected === 'supplement') && <label className="field"><span>{selected === 'note' ? 'Note' : 'Supplement and dose'}</span><textarea className="textarea" name="note" placeholder="Add details…" required /></label>}
-          <div className="row" style={{ marginTop: 6 }}>
-            <button className="btn btn-secondary" type="button" onClick={() => setSelected(null)}>Back</button>
-            <button className="btn btn-primary" type="submit" style={{ flex: 1 }}><Plus size={17} /> Save entry</button>
-          </div>
-        </form>
-      )}
-    </Sheet>
-  )
-}
-
-function NumberField({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
-  return <label className="field"><span>{label}</span><input className="input" type="number" name="amount" required {...props} /></label>
-}
-
-function MealFields() {
-  return <>
-    <label className="field"><span>Name</span><input className="input" name="title" placeholder="Meal or recipe name" required /></label>
-    <label className="field"><span>Meal</span><select className="select" name="meal"><option>Breakfast</option><option>Lunch</option><option>Dinner</option><option>Snack</option></select></label>
-    <div className="grid-2">
-      <NumberField label="Calories" name="calories" min="0" />
-      <NumberField label="Protein (g)" name="protein" min="0" step="0.1" />
-      <NumberField label="Carbs (g)" name="carbs" min="0" step="0.1" />
-      <NumberField label="Fat (g)" name="fat" min="0" step="0.1" />
-    </div>
-  </>
-}
+export function QuickAdd({open,onClose,onSaved}:{open:boolean;onClose:()=>void;onSaved:(message:string)=>void}){const[category,setCategory]=useState<Category|null>(null);const[selected,setSelected]=useState<ActionId|null>(null);const data=useData();const navigate=useNavigate();const location=useLocation();const recent=useMemo(()=>{if(!open)return[];try{return(JSON.parse(localStorage.getItem('dayframe_recent_actions')??'[]')as ActionId[]).filter((id)=>byId[id]).slice(0,4)}catch{return[]}},[open]);const ordered=useMemo(()=>{const context=location.pathname.startsWith('/train')?'Train':location.pathname.startsWith('/study')?'Study':location.pathname.startsWith('/life')?'Life':'Health';return[context,...quickAddCategories.filter((item)=>item!==context)]as Category[]},[location.pathname]);const close=()=>{setCategory(null);setSelected(null);onClose()};const remember=(id:ActionId)=>{localStorage.setItem('dayframe_recent_actions',JSON.stringify([id,...recent.filter((item)=>item!==id)].slice(0,4)))}
+  const choose=(id:ActionId)=>{if(['start_workout'].includes(id)){close();navigate('/train');return}if(['study_session','study_task','study_note','review'].includes(id)){close();navigate('/study');return}if(id==='meal'||id==='summary'){close();navigate('/nutrition');return}if(id==='travel'||id==='life_note'){close();navigate('/life');return}setSelected(id)}
+  const submit=(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();if(!selected)return;const f=new FormData(e.currentTarget);const n=Number(f.get('amount')??0);if(selected==='walk')data.updateDaily({walkingMinutes:data.daily.walkingMinutes+n});if(selected==='water')data.updateDaily({waterMl:data.daily.waterMl+n});if(selected==='steps')data.updateDaily({steps:n});if(selected==='sleep')data.updateDaily({sleepHours:n,sleepQuality:Number(f.get('quality'))});if(selected==='weight')data.updateDaily({weight:n});if(selected==='pain')data.updateDaily({pain:{score:n,location:String(f.get('location')),note:String(f.get('note')??'')}});if(selected==='reminder')data.addReminder(String(f.get('title')),String(f.get('time')??''));if(selected==='goal')data.addGoal(String(f.get('title')),'Personal');remember(selected);onSaved(`${byId[selected].label} saved${navigator.onLine?'':' to offline queue'}`);close()}
+  const title=selected?byId[selected].label:category??'Quick add';return <Sheet open={open} onClose={close} title={title} description={selected?'Saved to the selected day or durable offline queue.':category?'Choose one focused action.':'Recent actions and four clear domains.'}>{!category&&!selected&&<div className="quick-sections">{recent.length>0&&<div><p className="eyebrow">Recent</p><div className="quick-grid compact">{recent.map((id)=><QuickButton key={id} item={byId[id]} onClick={()=>choose(id)}/>)}</div></div>}<div><p className="eyebrow">Categories</p><div className="quick-grid categories">{ordered.filter((item)=>item!=='Recent').map((item)=><button className="quick-item" key={item} onClick={()=>setCategory(item)}><CategoryIcon name={item}/><strong>{item}</strong></button>)}</div></div></div>}{category&&!selected&&<><button className="btn btn-ghost btn-small" onClick={()=>setCategory(null)}><ChevronLeft size={15}/>Categories</button><div className="quick-grid section">{actions[category as Exclude<Category,'Recent'>].map((item)=><QuickButton key={item.id} item={item} onClick={()=>choose(item.id)}/>)}</div></>}{selected&&<form className="form-grid" onSubmit={submit}><button className="btn btn-ghost btn-small" type="button" onClick={()=>setSelected(null)}><ChevronLeft size={15}/>{category}</button>{(selected==='walk'||selected==='water'||selected==='steps'||selected==='weight')&&<NumberField label={selected==='walk'?'Minutes':selected==='water'?'Millilitres':selected==='steps'?'Step count':'Weight (kg)'} defaultValue={selected==='water'?'350':selected==='walk'?'20':''}/>} {selected==='sleep'&&<><NumberField label="Hours" step="0.1" defaultValue="7.5"/><label className="field"><span>Quality (1–5)</span><input className="input" name="quality" type="number" min="1" max="5" defaultValue="4" required/></label></>}{selected==='pain'&&<><NumberField label="Score (0–10)" min="0" max="10" defaultValue="2"/><label className="field"><span>Location</span><input className="input" name="location" required/></label><label className="field"><span>Note (optional)</span><textarea className="textarea" name="note"/></label></>}{(selected==='reminder'||selected==='goal')&&<label className="field"><span>Title</span><input className="input" name="title" required/></label>}{selected==='reminder'&&<label className="field"><span>Time</span><input className="input" name="time" type="time"/></label>}<button className="btn btn-primary"><Plus size={16}/>Save</button></form>}</Sheet>}
+function QuickButton({item,onClick}:{item:{id:ActionId;label:string;icon:typeof Dumbbell};onClick:()=>void}){const Icon=item.icon;return <button className="quick-item" onClick={onClick}><Icon size={20}/><span>{item.label}</span></button>}
+function CategoryIcon({name}:{name:string}){return name==='Train'?<Dumbbell/>:name==='Study'?<BookOpen/>:name==='Health'?<HeartPulse/>:<Sparkles/>}
+function NumberField({label,...props}:React.InputHTMLAttributes<HTMLInputElement>&{label:string}){return <label className="field"><span>{label}</span><input className="input" name="amount" type="number" required {...props}/></label>}

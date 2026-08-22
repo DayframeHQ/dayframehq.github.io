@@ -1,115 +1,28 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Check, ChevronDown, Clock3, Dumbbell, History, Pause, Play, Plus, Repeat2, RotateCcw, Sparkles, TimerReset, TrendingUp } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { addDays, format, subYears } from 'date-fns'
+import { Check, Clock3, Dumbbell, History, Pause, Play, Plus, RotateCcw, Sparkles, TrendingUp } from 'lucide-react'
 import { useData } from '../context/DataContext'
-import { useAuth } from '../context/AuthContext'
+import { useCopyTemplate, useIdentity, usePlans, usePlannedSessions, useProgressData, useTemplates, useV2Mutation } from '../hooks/useV2'
+import { dateKey, progressionSuggestion } from '../lib/v2'
+import { updatePlan, updatePlannedSession } from '../repositories/v2Repository'
+import type { PlannedSession, PlanTemplate } from '../types/v2'
 
-const week = [
-  { day: 'Tue', name: 'Upper A', focus: 'Back', status: 'done' },
-  { day: 'Thu', name: 'Lower A', focus: 'Quads', status: 'done' },
-  { day: 'Sat', name: 'Upper B', focus: 'Push', status: 'next' },
-  { day: 'Sun', name: 'Lower B', focus: 'Core', status: 'upcoming' },
-]
+type View='today'|'program'|'history'|'templates'
+export function TrainPage(){const[view,setView]=useState<View>('today');const[active,setActive]=useState<PlannedSession|null>(null);const data=useData();const today=dateKey(data.selectedDate);const end=dateKey(addDays(data.selectedDate,90));const plans=usePlans('train');const scheduled=usePlannedSessions(today,end,'train');const plan=plans.data?.find((item)=>item.status==='active');const next=scheduled.data?.find((item)=>['planned','active'].includes(item.status))
+  const begin=async(session:PlannedSession)=>{await data.loadWorkoutFromPlan((session.planned_items??[]).map((item)=>({id:item.id,title:item.title,metadata:item.metadata})));setActive(session)}
+  return <div className="page"><header className="page-header"><div><p className="eyebrow">Train</p><h1>Strong, one set at a time.</h1><p className="muted">Your schedule, execution, history and curated programs.</p></div></header>{!active&&<div className="tabs">{(['today','program','history','templates']as View[]).map((item)=><button className={`tab ${view===item?'active':''}`} key={item} onClick={()=>setView(item)}>{item[0].toUpperCase()+item.slice(1)}</button>)}</div>}
+    {active?<WorkoutLogger planned={active} onDone={()=>setActive(null)}/>:<>{view==='today'&&<TrainToday plan={plan} next={next} onStart={(session)=>void begin(session)}/>} {view==='program'&&<Program plan={plan} sessions={scheduled.data??[]}/>} {view==='history'&&<TrainHistory/>} {view==='templates'&&<TrainTemplates/>}</>}
+  </div>}
 
-export function TrainPage() {
-  const { workout, updateSet, copyStarterTemplate, saveWorkout } = useData()
-  const auth = useAuth()
-  const [active, setActive] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
-  const [rest, setRest] = useState(0)
-  const [timerRunning, setTimerRunning] = useState(false)
-  const [completed, setCompleted] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
-  const displayWeek = auth.isDemo ? week : week.map((item) => ({ ...item, status: 'upcoming' }))
+function TrainToday({plan,next,onStart}:{plan?:{name:string};next?:PlannedSession;onStart:(session:PlannedSession)=>void}){if(!plan)return <section className="card card-pad section empty-state"><Dumbbell size={28}/><h2>No active training plan</h2><p>Open Templates and explicitly copy a program that fits your week.</p></section>;return <><section className="card today-hero section"><div className="row-between"><span className="badge" style={{background:'rgba(245,240,231,.13)',color:'#F5F0E7'}}>{plan.name}</span>{next&&<span className="small muted">{format(new Date(`${next.scheduled_date}T12:00:00`),'EEE, MMM d')}</span>}</div><div className="hero-workout"><div><p className="muted small">{next?.scheduled_date===dateKey()?'Today':'Up next'}</p><h2>{next?.title??'Nothing scheduled'}</h2><p className="muted small">{next?`${next.estimated_minutes??60} min · ${next.planned_items?.length??0} exercises`:'Review your program schedule.'}</p></div>{next&&<button className="btn btn-primary" onClick={()=>onStart(next)}><Play size={17}/> {next.status==='active'?'Resume':'Start'}</button>}</div></section>{next&&<section className="section"><div className="section-title"><h2>Session prescription</h2><span className="badge">persisted schedule</span></div><div className="card card-pad">{next.planned_items?.map((item)=><div className="meal-row" key={item.id}><div><strong>{item.title}</strong><div className="tiny muted">{Number(item.metadata.sets??3)} sets · {Number(item.metadata.rep_min??8)}–{Number(item.metadata.rep_max??12)} reps</div></div><span className="badge badge-neutral">{item.status}</span></div>)}</div></section>}</>}
 
-  const totalSets = workout.reduce((sum, exercise) => sum + exercise.sets.length, 0)
-  const completedSets = workout.reduce((sum, exercise) => sum + exercise.sets.filter((set) => set.completed).length, 0)
-  const percent = totalSets ? Math.round((completedSets / totalSets) * 100) : 0
+function Program({plan,sessions}:{plan?:{id:string;name:string;goal?:string|null;status:string;start_date?:string|null;target_date?:string|null};sessions:PlannedSession[]}){const identity=useIdentity();const change=useV2Mutation((_identity:typeof identity,input:{status:'paused'|'active'|'archived'})=>plan?updatePlan(_identity,plan.id,{status:input.status}):Promise.resolve());void identity;if(!plan)return <div className="empty-state section">No active program.</div>;return <section className="section"><article className="card card-pad"><div className="row-between"><div><p className="eyebrow">Active personal copy</p><h2>{plan.name}</h2></div><span className="badge">{plan.status}</span></div><p className="muted small">{plan.goal} · {plan.start_date??'No start'} to {plan.target_date??'open ended'}</p><div className="row"><button className="btn btn-secondary btn-small" onClick={()=>change.mutate({status:plan.status==='paused'?'active':'paused'})}>{plan.status==='paused'?'Resume plan':'Pause plan'}</button><button className="btn btn-ghost btn-small" onClick={()=>change.mutate({status:'archived'})}>Archive</button></div><p className="tiny muted section">Edits affect only your copy; published template versions remain immutable.</p></article><div className="plan-list section">{sessions.slice(0,14).map((item)=><article className="card card-pad row-between" key={item.id}><div><span className="tiny muted">{format(new Date(`${item.scheduled_date}T12:00:00`),'EEE, MMM d')}</span><h3>{item.title}</h3></div><span className="badge badge-neutral">{item.status.replace('_',' ')}</span></article>)}</div></section>}
 
-  useEffect(() => {
-    if (!active || completed) return
-    const id = window.setInterval(() => setElapsed((value) => value + 1), 1000)
-    return () => window.clearInterval(id)
-  }, [active, completed])
+function TrainHistory(){const from=dateKey(subYears(new Date(),1));const to=dateKey();const progress=useProgressData(from,to);const workouts=progress.data?.workouts??[];return <section className="section"><div className="grid-3"><Metric value={String(workouts.filter((item)=>item.status==='completed').length)} label="completed workouts"/><Metric value={String(progress.data?.sets.filter((item)=>item.completed).length??0)} label="completed sets"/><Metric value={workouts.length?`${Math.round(workouts.filter((item)=>item.status==='completed').length/workouts.length*100)}%`:'—'} label="completion rate"/></div><div className="section-title" style={{marginTop:26}}><h2>Recent sessions</h2><History size={18}/></div><div className="card card-pad">{workouts.length?workouts.slice(0,12).map((item)=><div className="meal-row" key={item.id}><div><strong>{format(new Date(`${item.session_date}T12:00:00`),'MMM d, yyyy')}</strong><div className="tiny muted">{item.status} · {item.exercise_logs?.length??0} exercises</div></div><span className="badge badge-neutral">persisted</span></div>):<div className="empty-state">No completed workouts in this range. Dayframe does not invent history.</div>}</div></section>}
 
-  useEffect(() => {
-    if (!timerRunning || rest <= 0) return
-    const id = window.setInterval(() => setRest((value) => {
-      if (value <= 1) { setTimerRunning(false); return 0 }
-      return value - 1
-    }), 1000)
-    return () => window.clearInterval(id)
-  }, [rest, timerRunning])
+function TrainTemplates(){const templates=useTemplates('train');const copy=useCopyTemplate();const[startDate,setStartDate]=useState(dateKey());const[preview,setPreview]=useState<PlanTemplate|null>(null);const[days,setDays]=useState(4);const shown=(templates.data??[]).sort((a,b)=>(a.version.days_per_week_min??0)-(b.version.days_per_week_min??0));return <section className="section"><article className="card card-pad"><p className="eyebrow">Recommendation filter</p><div className="grid-2"><label className="field"><span>Days available: {days}</span><input type="range" min="1" max="7" value={days} onChange={(e)=>setDays(Number(e.target.value))}/></label><label className="field"><span>Start date</span><input className="input" type="date" value={startDate} onChange={(e)=>setStartDate(e.target.value)}/></label></div><p className="muted small">Availability filters the catalog. You choose and confirm the final copy.</p></article><div className="grid-2 section">{shown.map((template)=><article className={`card card-pad ${template.version.days_per_week_min===days?'recommended-card':''}`} key={template.id}><div className="row-between"><span className="badge">{template.version.days_per_week_min} day{template.version.days_per_week_min===1?'':'s'}</span>{template.featured&&<span className="tiny muted">Featured</span>}</div><h2 style={{marginTop:14}}>{template.name}</h2><p className="muted small">{template.short_description}</p><button className="btn btn-secondary" onClick={()=>setPreview(template)}>Preview</button></article>)}</div>{preview&&<article className="card card-pad section"><div className="row-between"><div><p className="eyebrow">Science-informed Dayframe template · v{preview.version.version}</p><h2>{preview.name}</h2></div><button className="btn btn-ghost" onClick={()=>setPreview(null)}>Close</button></div><p className="muted">{preview.short_description}</p>{preview.version.content.phases.flatMap((phase)=>phase.blocks).flatMap((block)=>block.sessions).map((session)=><div className="meal-row" key={session.title}><div><strong>{session.title}</strong><div className="tiny muted">{session.items.length} movements · {session.minutes} min</div></div></div>)}<button className="btn btn-primary section" disabled={copy.isPending} onClick={()=>copy.mutate({template:preview,startDate})}><Plus size={16}/>{copy.isPending?'Copying…':'Copy template'}</button>{copy.isSuccess&&<p className="auth-message">Your normalized plan and scheduled sessions are ready.</p>}{copy.error&&<p className="field-error">{copy.error.message}</p>}<p className="tiny muted section">Curated by Dayframe. Dayframe is not affiliated with or endorsed by external sources.</p></article>}</section>}
 
-  const formatTimer = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
-
-  const toggleSet = (exerciseId: string, setId: string, checked: boolean) => {
-    updateSet(exerciseId, setId, 'completed', checked)
-    if (checked) { setRest(90); setTimerRunning(true) }
-  }
-
-  const volume = useMemo(() => workout.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completed).reduce((sum, set) => sum + set.weight * set.reps, 0), 0), [workout])
-
-  return (
-    <div className="page">
-      <header className="page-header">
-        <div><p className="eyebrow">Training</p><h1>Strong, one set at a time.</h1><p className="muted">Your program, history and progression in one place.</p></div>
-        <button className="btn btn-secondary btn-icon" type="button" aria-label="Workout history"><History size={20} /></button>
-      </header>
-
-      {!active && <>
-        <section className="card today-hero">
-          <div className="row-between"><span className="badge" style={{ color: '#F5F0E7', background: 'rgba(245,240,231,.12)' }}>4-Day Recomp</span><span className="muted small">Week 6</span></div>
-          <div className="hero-workout"><div><p className="muted small" style={{ marginBottom: 5 }}>{workout.length ? 'Up next' : 'Available template'}</p><h2>Upper B · Push emphasis</h2><p className="muted small" style={{ margin: 0 }}>4 primary movements · 12 working sets</p></div><button className="btn btn-primary" type="button" onClick={() => workout.length ? setActive(true) : copyStarterTemplate()}>{workout.length ? <><Play size={17} fill="currentColor" /> Start</> : <><Plus size={17} /> Copy template</>}</button></div>
-        </section>
-
-        <section className="section">
-          <div className="section-title"><h2>This week</h2><span className="badge">{auth.isDemo ? '2' : '0'} of 4 complete</span></div>
-          <div className="card card-pad">
-            {displayWeek.map((item) => <div className="row-between" key={item.day} style={{ padding: '11px 0' }}><div className="row"><span className="icon-bubble" style={{ width: 36, height: 36, color: item.status === 'done' ? 'white' : undefined, background: item.status === 'done' ? 'var(--brand)' : undefined }}>{item.status === 'done' ? <Check size={16} /> : <Dumbbell size={16} />}</span><div><strong className="small">{item.name}</strong><div className="muted tiny">{item.focus} emphasis</div></div></div><div style={{ textAlign: 'right' }}><strong className="small">{item.day}</strong><div className="muted tiny">{item.status === 'next' ? 'Up next' : item.status}</div></div></div>)}
-          </div>
-        </section>
-
-        <div className="grid-3 section">
-          <article className="card card-pad"><span className="icon-bubble"><TrendingUp size={19} /></span><span className="metric-value" style={{ marginTop: 14 }}>{auth.isDemo ? '88%' : '—'}</span><span className="metric-label">4-week adherence</span></article>
-          <article className="card card-pad"><span className="icon-bubble"><Dumbbell size={19} /></span><span className="metric-value" style={{ marginTop: 14 }}>{auth.isDemo ? '42' : '0'}</span><span className="metric-label">hard sets this week</span></article>
-          <article className="card card-pad"><span className="icon-bubble"><Sparkles size={19} /></span><span className="metric-value" style={{ marginTop: 14 }}>{auth.isDemo ? '3' : '0'}</span><span className="metric-label">recent rep PRs</span></article>
-        </div>
-
-        <section className="section"><div className="section-title"><h2>Your programs</h2><button className="link-button small" type="button"><Plus size={14} style={{ verticalAlign: -2 }} /> New program</button></div><article className="card card-pad row-between"><div><span className="badge">Active</span><h3 style={{ marginTop: 12 }}>4-Day Recomp — Upper/Lower</h3><p className="muted small" style={{ margin: 0 }}>4 days · 30 programmed exercises</p></div><ChevronDown className="muted" /></article></section>
-      </>}
-
-      {active && <>
-        <div className="rest-timer">
-          <div className="row"><Clock3 size={19} /><div><strong>{rest > 0 ? `Rest ${formatTimer(rest)}` : `Session ${formatTimer(elapsed)}`}</strong><div className="tiny" style={{ opacity: .7 }}>{rest > 0 ? 'Next set when ready' : `${completedSets} of ${totalSets} sets complete`}</div></div></div>
-          <div className="row" style={{ gap: 4 }}>{rest > 0 && <><button className="btn btn-ghost btn-icon" style={{ color: 'inherit' }} type="button" onClick={() => setTimerRunning((value) => !value)} aria-label={timerRunning ? 'Pause timer' : 'Resume timer'}>{timerRunning ? <Pause size={17} /> : <Play size={17} />}</button><button className="btn btn-ghost btn-icon" style={{ color: 'inherit' }} type="button" onClick={() => { setRest(90); setTimerRunning(true) }} aria-label="Reset timer"><RotateCcw size={17} /></button></>}</div>
-        </div>
-        <div className="row-between" style={{ marginBottom: 16 }}><div><p className="eyebrow">Active workout</p><h1 style={{ fontSize: 31 }}>Upper B</h1></div><div style={{ textAlign: 'right' }}><strong>{percent}%</strong><div className="muted tiny">{completedSets}/{totalSets} sets</div></div></div>
-        <div className="progress-track" style={{ marginBottom: 22 }}><div className="progress-fill" style={{ width: `${percent}%` }} /></div>
-
-        <div style={{ display: 'grid', gap: 14 }}>
-          {workout.map((exercise, exerciseIndex) => <article className="card workout-card" key={exercise.id}>
-            <div className="row-between"><div><span className="muted tiny">{exerciseIndex + 1} · {exercise.repRange}</span><h2 style={{ margin: '4px 0' }}>{exercise.name}</h2><p className="muted tiny" style={{ margin: 0 }}>Last: {exercise.previous}</p></div><button className="btn btn-ghost btn-icon" type="button" title="Substitute exercise" aria-label={`Substitute ${exercise.name}`}><Repeat2 size={18} /></button></div>
-            <table className="set-table">
-              <thead><tr><th>Set</th><th>kg</th><th>Reps</th><th>RIR</th><th>Done</th></tr></thead>
-              <tbody>{exercise.sets.map((set, index) => <tr key={set.id}>
-                <td className="set-number">{index + 1}</td>
-                <td><input className="set-input" type="number" step="0.5" aria-label={`${exercise.name} set ${index + 1} weight`} value={set.weight} onChange={(event) => updateSet(exercise.id, set.id, 'weight', Number(event.target.value))} /></td>
-                <td><input className="set-input" type="number" min="0" aria-label={`${exercise.name} set ${index + 1} reps`} value={set.reps || ''} placeholder="—" onChange={(event) => updateSet(exercise.id, set.id, 'reps', Number(event.target.value))} /></td>
-                <td><input className="set-input" type="number" min="0" max="5" aria-label={`${exercise.name} set ${index + 1} RIR`} value={set.rir} onChange={(event) => updateSet(exercise.id, set.id, 'rir', Number(event.target.value))} /></td>
-                <td><button className={`check ${set.completed ? 'checked' : ''}`} type="button" onClick={() => toggleSet(exercise.id, set.id, !set.completed)} aria-label={`Mark ${exercise.name} set ${index + 1} ${set.completed ? 'incomplete' : 'complete'}`}>{set.completed && <Check size={15} />}</button></td>
-              </tr>)}</tbody>
-            </table>
-            {exercise.sets.every((set) => set.completed && set.reps >= 10 && set.rir >= 1) && <div className="insight-callout small"><Sparkles size={15} style={{ display: 'inline', verticalAlign: -3, marginRight: 6 }} />You reached the top of the rep range with reps in reserve. Consider a small load increase next time — confirm before changing the plan.</div>}
-          </article>)}
-        </div>
-
-        <section className="card card-pad section">
-          <div className="row-between"><div><span className="muted tiny">Session volume</span><div className="metric-value">{Math.round(volume).toLocaleString()} kg</div></div><TimerReset size={24} className="muted" /></div>
-          {!completed ? <button className="btn btn-primary" style={{ width: '100%', marginTop: 18 }} type="button" disabled={completedSets === 0 || saving} onClick={() => { setSaving(true); setSaveError(''); void saveWorkout().then(() => setCompleted(true)).catch(() => setSaveError('Could not sync this workout yet. Your entries remain on this device.')).finally(() => setSaving(false)) }}><Check size={17} /> {saving ? 'Saving…' : 'Finish workout'}</button> : <div className="insight-callout" style={{ marginTop: 18 }}><strong>Workout complete.</strong><p className="small" style={{ margin: '5px 0 0' }}>Nice work. Your completed sets are saved.</p></div>}
-          {saveError && <p className="small" role="alert" style={{ color: 'var(--danger)', margin: '10px 0 0' }}>{saveError}</p>}
-        </section>
-      </>}
-    </div>
-  )
-}
+function WorkoutLogger({planned,onDone}:{planned:PlannedSession;onDone:()=>void}){const data=useData();const identity=useIdentity();const completePlan=useV2Mutation((_identity:typeof identity,id:string)=>updatePlannedSession(_identity,id,{status:'completed',completed_at:new Date().toISOString()}));const[elapsed,setElapsed]=useState(0);const[rest,setRest]=useState(0);const[running,setRunning]=useState(false);const[saving,setSaving]=useState(false);const[error,setError]=useState('');const total=data.workout.reduce((sum,item)=>sum+item.sets.length,0);const done=data.workout.reduce((sum,item)=>sum+item.sets.filter((set)=>set.completed).length,0);useEffect(()=>{const id=window.setInterval(()=>setElapsed((v)=>v+1),1000);return()=>window.clearInterval(id)},[]);useEffect(()=>{if(!running||rest<=0)return;const id=window.setInterval(()=>setRest((v)=>{if(v<=1){setRunning(false);return 0}return v-1}),1000);return()=>window.clearInterval(id)},[running,rest]);const finish=async()=>{setSaving(true);setError('');try{await data.saveWorkout(planned.id);await completePlan.mutateAsync(planned.id);onDone()}catch(e){setError(e instanceof Error?e.message:'Workout could not be saved')}finally{setSaving(false)}}
+  void identity
+  return <section className="section"><div className="rest-timer"><div className="row"><Clock3/><div><strong>{rest?`Rest ${Math.floor(rest/60)}:${String(rest%60).padStart(2,'0')}`:`Session ${Math.floor(elapsed/60)}:${String(elapsed%60).padStart(2,'0')}`}</strong><div className="tiny">{done}/{total} sets</div></div></div>{rest>0&&<div className="row"><button className="btn btn-ghost btn-icon" style={{color:'inherit'}} onClick={()=>setRunning(!running)}>{running?<Pause/>:<Play/>}</button><button className="btn btn-ghost btn-icon" style={{color:'inherit'}} onClick={()=>{setRest(90);setRunning(true)}}><RotateCcw/></button></div>}</div><p className="eyebrow">Active workout</p><h1>{planned.title}</h1><div className="progress-track"><div className="progress-fill" style={{width:`${total?done/total*100:0}%`}}/></div><div className="plan-list section">{data.workout.map((exercise,index)=><article className="card workout-card" key={exercise.id}><span className="tiny muted">{index+1} · {exercise.repRange}</span><h2>{exercise.name}</h2><p className="tiny muted">Previous: {exercise.previous}</p><table className="set-table"><thead><tr><th>Set</th><th>kg</th><th>Reps</th><th>RIR</th><th>Done</th></tr></thead><tbody>{exercise.sets.map((set,i)=><tr key={set.id}><td>{i+1}</td><td><input className="set-input" aria-label={`${exercise.name} set ${i+1} weight`} type="number" step="0.5" value={set.weight} onChange={(e)=>data.updateSet(exercise.id,set.id,'weight',Number(e.target.value))}/></td><td><input className="set-input" aria-label={`${exercise.name} set ${i+1} reps`} type="number" value={set.reps||''} onChange={(e)=>data.updateSet(exercise.id,set.id,'reps',Number(e.target.value))}/></td><td><input className="set-input" aria-label={`${exercise.name} set ${i+1} RIR`} type="number" min="0" max="10" value={set.rir} onChange={(e)=>data.updateSet(exercise.id,set.id,'rir',Number(e.target.value))}/></td><td><button className={`check ${set.completed?'checked':''}`} aria-label={`Mark ${exercise.name} set ${i+1} ${set.completed?'incomplete':'complete'}`} onClick={()=>{data.updateSet(exercise.id,set.id,'completed',!set.completed);if(!set.completed){setRest(90);setRunning(true)}}}>{set.completed&&<Check size={15}/>}</button></td></tr>)}</tbody></table>{progressionSuggestion(exercise.sets,Number(exercise.repRange.match(/–(\d+)/)?.[1]??12))&&<div className="insight-callout small"><Sparkles size={15}/> {progressionSuggestion(exercise.sets,Number(exercise.repRange.match(/–(\d+)/)?.[1]??12))} Confirm before changing the next prescription.</div>}</article>)}</div><button className="btn btn-primary section" disabled={!done||saving} onClick={()=>void finish()}>{saving?'Saving persisted workout…':'Finish workout'}</button>{error&&<p className="field-error">{error}</p>}</section>}
+function Metric({value,label}:{value:string;label:string}){return <article className="card card-pad"><span className="icon-bubble"><TrendingUp/></span><span className="metric-value" style={{marginTop:14}}>{value}</span><span className="metric-label">{label}</span></article>}

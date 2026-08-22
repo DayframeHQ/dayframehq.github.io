@@ -1,41 +1,21 @@
 import { expect, test } from '@playwright/test'
 
-test('email users can choose sign in or create account', async ({ page }) => {
-  await page.goto('/')
-  await expect(page.locator('.brand-mark').first()).toBeVisible()
-  await expect(page.getByRole('tab', { name: 'Sign in' })).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByLabel('Password', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: /email me a sign-in link/i })).toBeVisible()
+async function enterDemo(page: import('@playwright/test').Page){await page.goto('/');await page.getByRole('button',{name:/explore the interactive demo/i}).click();await expect(page.getByRole('heading',{name:/today, clearly/i})).toBeVisible()}
 
-  await page.getByRole('tab', { name: 'Create account' }).click()
-  await expect(page.getByLabel('Confirm password')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Create account', exact: true })).toBeVisible()
-})
+test('authentication page is safe with or without local Supabase variables',async({page})=>{await page.goto('/');await expect(page.locator('.brand-mark').first()).toBeVisible();if(await page.getByText(/supabase setup needed/i).isVisible())await expect(page.getByRole('button',{name:/explore the interactive demo/i})).toBeVisible();else{await expect(page.getByRole('tab',{name:'Sign in'})).toHaveAttribute('aria-selected','true');await expect(page.getByLabel('Password',{exact:true})).toBeVisible();await page.getByRole('tab',{name:'Create account'}).click();await expect(page.getByLabel('Confirm password')).toBeVisible()}})
 
-test('demo user can navigate and log a workout set', async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: /explore the interactive demo/i }).click()
-  await expect(page.getByRole('heading', { name: /there/i })).toBeVisible()
-  await page.getByRole('link', { name: /train/i }).first().click()
-  await page.getByRole('button', { name: /^start$/i }).click()
-  const reps = page.getByLabel(/set 1 reps/i).first()
-  await reps.fill('10')
-  await page.getByRole('button', { name: /mark .* set 1 complete/i }).first().click()
-  await expect(page.getByText(/1\/12 sets/i)).toBeVisible()
-})
+test('V2 primary navigation is Today, Train, Study, Life and Progress',async({page})=>{await enterDemo(page);for(const name of ['Today','Train','Study','Life','Progress'])await expect(page.getByRole('link',{name:new RegExp(name,'i')}).first()).toBeVisible();await expect(page.getByRole('link',{name:/food/i})).toHaveCount(0)})
 
-test('food totals and life goals are reachable', async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: /explore the interactive demo/i }).click()
-  await page.getByRole('link', { name: /food/i }).first().click()
-  await expect(page.getByText(/calories today/i)).toBeVisible()
-  await page.getByRole('link', { name: /life/i }).first().click()
-  await expect(page.getByRole('heading', { name: /active goals/i })).toBeVisible()
-})
+test('demo can execute a planned workout set',async({page})=>{await enterDemo(page);await page.getByRole('link',{name:/train/i}).first().click();await page.getByRole('button',{name:/start/i}).click();const reps=page.getByLabel(/set 1 reps/i).first();await reps.fill('6');await page.getByRole('button',{name:/mark .* set 1 complete/i}).first().click();await expect(page.getByText(/1\/12 sets/i)).toBeVisible();await expect(page.getByRole('button',{name:/finish workout/i})).toBeEnabled()})
 
-test('demo profile offers a clear route to real sign in', async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: /explore the interactive demo/i }).click()
-  await page.goto('/#/settings')
-  await expect(page.getByRole('button', { name: /create account or sign in/i })).toBeVisible()
-})
+test('demo Study session records a manual attempt and finishes',async({page})=>{await enterDemo(page);await page.getByRole('link',{name:/study/i}).first().click();await page.getByRole('button',{name:/start session/i}).click();await page.getByRole('button',{name:/log result/i}).first().click();await page.getByRole('dialog',{name:/log study result/i}).locator('select').first().selectOption('independent');await page.getByRole('button',{name:/save result/i}).click();await page.getByLabel('Closing note').fill('Traversal choice is clearer.');await page.getByRole('button',{name:/finish and save/i}).click();await expect(page.getByText(/current roadmap/i)).toBeVisible()})
+
+test('nutrition summary is reviewed and does not hide itemized mode',async({page})=>{await enterDemo(page);await page.goto('/#/nutrition');await expect(page.getByRole('heading',{name:/fuel, without the fuss/i})).toBeVisible();await page.getByRole('button',{name:/enter daily summary/i}).click();await page.getByLabel('Calories').fill('2100');await page.getByLabel('Protein (g)').fill('140');await page.getByLabel('Carbs (g)').fill('220');await page.getByLabel('Fat (g)').fill('70');await page.getByLabel('Fiber (g)').fill('30');await page.getByRole('button',{name:/save authoritative summary/i}).click();await expect(page.getByText(/daily summary is the total/i)).toBeVisible()})
+
+test('Quick Add opens contextual categories before actions',async({page})=>{await enterDemo(page);await page.getByRole('button',{name:/quick add/i}).click();const dialog=page.getByRole('dialog');for(const name of ['Train','Study','Health','Life'])await expect(dialog.getByRole('button',{name,exact:true})).toBeVisible();await dialog.getByRole('button',{name:'Health',exact:true}).click();await expect(dialog.getByRole('button',{name:/water/i})).toBeVisible()})
+
+test('Progress range filters show honest evidence',async({page})=>{await enterDemo(page);await page.getByRole('link',{name:/progress/i}).first().click();await page.getByRole('button',{name:'7D'}).click();await page.getByRole('button',{name:'Study'}).click();await expect(page.getByText(/independent solve rate/i)).toBeVisible()})
+
+test('legacy routes redirect to V2 destinations',async({page})=>{await enterDemo(page);await page.goto('/#/food');await expect(page.getByRole('heading',{name:/fuel, without the fuss/i})).toBeVisible();await page.goto('/#/insights');await expect(page.getByRole('heading',{name:/evidence over guesses/i})).toBeVisible()})
+
+test('demo profile offers a route to real sign in',async({page})=>{await enterDemo(page);await page.goto('/#/settings');await expect(page.getByRole('button',{name:/create account or sign in/i})).toBeVisible()})

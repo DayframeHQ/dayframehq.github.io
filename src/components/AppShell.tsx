@@ -1,5 +1,5 @@
 import { useEffect, useState, type PropsWithChildren } from 'react'
-import { BarChart3, CircleUserRound, Dumbbell, Home, Leaf, ListPlus, Plus, Sparkles } from 'lucide-react'
+import { BarChart3, BookOpen, CircleUserRound, Dumbbell, FlaskConical, Home, ListPlus, Plus, Sparkles, Utensils } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Brand } from './Brand'
 import { QuickAdd } from './QuickAdd'
@@ -9,9 +9,9 @@ import { useData } from '../context/DataContext'
 const nav = [
   { to: '/', label: 'Today', icon: Home },
   { to: '/train', label: 'Train', icon: Dumbbell },
-  { to: '/food', label: 'Food', icon: Leaf },
+  { to: '/study', label: 'Study', icon: BookOpen },
   { to: '/life', label: 'Life', icon: Sparkles },
-  { to: '/insights', label: 'Insights', icon: BarChart3 },
+  { to: '/progress', label: 'Progress', icon: BarChart3 },
 ]
 
 export function AppShell({ children }: PropsWithChildren) {
@@ -38,6 +38,8 @@ export function AppShell({ children }: PropsWithChildren) {
         </nav>
         <div className="desktop-profile">
           {syncPending && <div className="badge badge-warm" style={{ margin: '0 12px 12px' }}>Offline · changes queued</div>}
+          <NavLink to="/nutrition" className={({ isActive }) => cn('nav-item', isActive && 'active')}><Utensils size={20} /><span>Nutrition</span></NavLink>
+          <NavLink to="/health" className={({ isActive }) => cn('nav-item', isActive && 'active')}><FlaskConical size={20} /><span>Health</span></NavLink>
           <NavLink to="/settings" className={({ isActive }) => cn('nav-item', isActive && 'active')}><CircleUserRound size={20} /><span>Profile & settings</span></NavLink>
         </div>
       </aside>
