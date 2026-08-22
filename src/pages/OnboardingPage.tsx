@@ -26,7 +26,10 @@ export function OnboardingPage({ onComplete }: OnboardingPageProps) {
       if (profileError) throw profileError
 
       if (form.calories || form.protein) {
-        const { error: preferencesError } = await supabase.from('user_preferences').upsert({ user_id: user.id, calorie_target: Number(form.calories) || null, protein_target_g: Number(form.protein) || null })
+        const { error: preferencesError } = await supabase.from('user_preferences').upsert(
+          { user_id: user.id, calorie_target: Number(form.calories) || null, protein_target_g: Number(form.protein) || null },
+          { onConflict: 'user_id' },
+        )
         if (preferencesError) throw preferencesError
       }
       if (form.weight) {

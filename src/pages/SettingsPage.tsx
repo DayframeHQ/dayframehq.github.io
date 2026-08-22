@@ -117,7 +117,10 @@ export function SettingsPage() {
     const values = new FormData(event.currentTarget)
     const profile = await supabase.from('profiles').update({ display_name: String(values.get('name')), timezone: String(values.get('timezone')), preferred_units: String(values.get('units')) }).eq('user_id', auth.user.id)
     const leetcodeUrl = String(values.get('leetcode') ?? nutritionPreferences.data?.leetcode_profile_url ?? '').trim()
-    const preferences = await supabase.from('user_preferences').upsert({ user_id: auth.user.id, calorie_target: Number(values.get('calories')) || null, protein_target_g: Number(values.get('protein')) || null, fiber_target_g: Number(values.get('fiber')) || null, steps_target: Number(values.get('steps')) || null, hydration_target_ml: Number(values.get('water')) || null, leetcode_profile_url: leetcodeUrl || null })
+    const preferences = await supabase.from('user_preferences').upsert(
+      { user_id: auth.user.id, calorie_target: Number(values.get('calories')) || null, protein_target_g: Number(values.get('protein')) || null, fiber_target_g: Number(values.get('fiber')) || null, steps_target: Number(values.get('steps')) || null, hydration_target_ml: Number(values.get('water')) || null, leetcode_profile_url: leetcodeUrl || null },
+      { onConflict: 'user_id' },
+    )
     if (profile.error || preferences.error) { setMessage(profile.error?.message ?? preferences.error?.message ?? 'Settings could not be saved.'); return }
     setPanel(null); setMessage('Profile, units, timezone and targets saved.')
   }
@@ -127,7 +130,10 @@ export function SettingsPage() {
     if (!auth.user || !supabase) { setMessage('Sign in to save a profile link.'); return }
     const url = String(new FormData(event.currentTarget).get('leetcode') ?? '').trim()
     if (url && !/^https:\/\/(www\.)?leetcode\.com\/u\/[A-Za-z0-9_-]+\/?$/.test(url)) { setMessage('Enter a public LeetCode profile URL such as https://leetcode.com/u/username/.'); return }
-    const { error } = await supabase.from('user_preferences').upsert({ user_id: auth.user.id, leetcode_profile_url: url || null })
+    const { error } = await supabase.from('user_preferences').upsert(
+      { user_id: auth.user.id, leetcode_profile_url: url || null },
+      { onConflict: 'user_id' },
+    )
     if (error) { setMessage(error.message); return }
     setMessage('LeetCode profile link saved. Dayframe does not scrape or automatically sync it.')
   }
