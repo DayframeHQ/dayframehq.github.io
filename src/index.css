@@ -246,6 +246,26 @@ h3 { margin-bottom: 6px; font-size: 15px; }
 .template-inline-preview > .row-between { align-items: flex-start; }
 
 .settings-grid { display: grid; gap: 14px; }
+.onboarding-card { padding: clamp(24px, 6vw, 48px); }
+.onboarding-card > h1 { max-width: 650px; font-size: clamp(2rem, 6vw, 3.6rem); line-height: .98; }
+.interest-fieldset { border: 0; padding: 0; margin: 4px 0 0; min-width: 0; }
+.interest-fieldset legend { font-size: .9rem; font-weight: 700; margin-bottom: 4px; }
+.choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.choice-card { display: flex; align-items: flex-start; gap: 12px; min-height: 92px; padding: 16px; color: var(--ink); text-align: left; border: 1px solid var(--line); border-radius: 12px; background: var(--canvas); cursor: pointer; transition: border-color .15s ease, background .15s ease, transform .15s ease; }
+.choice-card:hover { transform: translateY(-1px); border-color: var(--muted); }
+.choice-card.selected { border-color: var(--brand); background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--brand); }
+.choice-card span { display: grid; gap: 4px; }
+.choice-card small { color: var(--muted); line-height: 1.35; }
+.onboarding-actions { gap: 18px; margin-top: 6px; }
+.progressive-setup { max-width: 820px; }
+.progressive-setup > h2 { font-size: clamp(1.7rem, 4vw, 2.5rem); }
+.progressive-actions { flex-wrap: wrap; }
+@media (max-width: 560px) {
+  .choice-grid { grid-template-columns: 1fr; }
+  .choice-card { min-height: 78px; }
+  .onboarding-actions { align-items: stretch; flex-direction: column; }
+  .onboarding-actions .btn { width: 100%; }
+}
 .settings-row { width: 100%; min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); background: none; text-align: left; cursor: pointer; }
 .settings-row:last-child { border: 0; }
 .switch { width: 44px; height: 26px; padding: 3px; border: 0; border-radius: 20px; background: var(--line); cursor: pointer; }

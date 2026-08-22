@@ -12,6 +12,7 @@ export interface AuthState {
   signInWithEmail: (email: string) => Promise<void>
   signInWithPassword: (email: string, password: string) => Promise<void>
   signUpWithPassword: (email: string, password: string) => Promise<{ needsEmailVerification: boolean }>
+  updateUserMetadata: (data: Record<string, unknown>) => Promise<void>
   signOut: () => Promise<void>
 }
 

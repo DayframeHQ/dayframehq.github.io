@@ -69,6 +69,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (error) throw error
       return { needsEmailVerification: data.session === null }
     },
+    updateUserMetadata: async (metadata: Record<string, unknown>) => {
+      if (isDemo || !supabase) return
+      const { data, error } = await supabase.auth.updateUser({ data: metadata })
+      if (error) throw error
+      if (data.user) setSession((current) => current ? { ...current, user: data.user } : current)
+    },
     signOut: async () => {
       sessionStorage.removeItem('dayframe_demo')
       setIsDemo(false)

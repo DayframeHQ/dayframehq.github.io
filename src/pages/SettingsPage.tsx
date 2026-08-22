@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ArrowLeft, Bell, ChevronRight, Database, Download, FileJson, FlaskConical, HelpCircle, LogOut, Moon, Palette, Shield, Trash2, Upload, UserRound } from 'lucide-react'
+import { ArrowLeft, Bell, ChevronRight, Database, Download, FileJson, FlaskConical, HelpCircle, LogOut, Moon, Palette, Shield, SlidersHorizontal, Trash2, Upload, UserRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useData } from '../context/DataContext'
@@ -7,12 +7,16 @@ import { Sheet } from '../components/Sheet'
 import { supabase } from '../lib/supabase'
 import { resetDemoV2 } from '../repositories/v2Repository'
 import { useNutritionPreferences } from '../hooks/useV2'
+import { usePersonalization } from '../hooks/usePersonalization'
+import { InterestPicker } from '../components/InterestPicker'
 
 export function SettingsPage() {
   const navigate = useNavigate()
   const auth = useAuth()
   const data = useData()
   const nutritionPreferences = useNutritionPreferences()
+  const personalization = usePersonalization()
+  const [interests, setInterests] = useState(personalization.interests)
   const [dark, setDark] = useState(() => localStorage.getItem('dayframe_theme') !== 'light')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -20,7 +24,7 @@ export function SettingsPage() {
   const [importing, setImporting] = useState(false)
   const [deleteText, setDeleteText] = useState('')
   const [message, setMessage] = useState('')
-  const [panel, setPanel] = useState<'profile' | 'privacy' | null>(null)
+  const [panel, setPanel] = useState<'profile' | 'personalization' | 'privacy' | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -122,7 +126,14 @@ export function SettingsPage() {
       { onConflict: 'user_id' },
     )
     if (profile.error || preferences.error) { setMessage(profile.error?.message ?? preferences.error?.message ?? 'Settings could not be saved.'); return }
+    await auth.updateUserMetadata({ full_name: String(values.get('name')) })
     setPanel(null); setMessage('Profile, units, timezone and targets saved.')
+  }
+
+  const savePersonalization = async () => {
+    if (!interests.length) { setMessage('Choose at least one area.'); return }
+    try { await personalization.saveInterests(interests); setPanel(null); setMessage('Dayframe’s priorities have been updated.') }
+    catch (error) { setMessage(error instanceof Error ? error.message : 'Personalization could not be saved.') }
   }
 
   const saveLeetcode = async (event: FormEvent<HTMLFormElement>) => {
@@ -148,6 +159,8 @@ export function SettingsPage() {
       <div className="settings-grid section">
         <section className="card card-pad"><div className="row" style={{ marginBottom: 12 }}><span className="icon-bubble"><UserRound size={19} /></span><div><strong>{auth.user?.user_metadata.full_name ?? 'Demo profile'}</strong><div className="muted small">{auth.user?.email ?? 'Local preview account'}</div></div></div><button className="settings-row" type="button" onClick={() => setPanel('profile')}><span>Edit profile, targets, units & timezone</span><ChevronRight size={18} className="muted" /></button></section>
 
+        <section className="card card-pad"><div className="row"><span className="icon-bubble"><SlidersHorizontal size={19} /></span><strong>Personalization</strong></div><p className="muted small">Controls what appears first on Today and in Quick Add.</p><button className="settings-row" type="button" onClick={() => { setInterests(personalization.interests); setPanel('personalization') }}><span>Edit interests and priorities</span><ChevronRight size={18} className="muted" /></button></section>
+
         <section className="card card-pad"><div className="row"><span className="icon-bubble"><Palette size={19} /></span><strong>Appearance & alerts</strong></div><button className="settings-row" type="button" onClick={() => setDark((value) => !value)}><span className="row"><Moon size={17} /> Dark mode</span><span className={`switch ${dark ? 'on' : ''}`} role="switch" aria-checked={dark}><span /></span></button><button className="settings-row" type="button" onClick={() => void ('Notification' in window ? Notification.requestPermission().then((value) => setMessage(`Browser notification permission: ${value}. Background delivery is not guaranteed.`)) : setMessage('This browser does not support notifications.'))}><span className="row"><Bell size={17} /> Request notification permission</span><span className="badge badge-neutral">Browser only</span></button></section>
 
         <section className="card card-pad"><div className="row"><span className="icon-bubble"><Database size={19} /></span><strong>Your data</strong></div><button className="settings-row" type="button" onClick={() => void exportJson()}><span className="row"><FileJson size={17} /> Export all V2 data as JSON</span><Download size={17} className="muted" /></button><button className="settings-row" type="button" onClick={() => void exportCsv()}><span className="row"><Download size={17} /> Export meals as CSV</span><ChevronRight size={17} className="muted" /></button><button className="settings-row" type="button" onClick={() => importRef.current?.click()}><span className="row"><Upload size={17} /> Import Dayframe JSON</span><ChevronRight size={17} className="muted" /></button><input ref={importRef} type="file" accept="application/json" hidden onChange={(event) => void importJson(event.target.files?.[0])} /><button className="settings-row" type="button" onClick={() => navigate('/nutrition')}><span>Nutrition & daily summaries</span><ChevronRight size={17} className="muted" /></button><button className="settings-row" type="button" onClick={() => navigate('/health')}><span className="row"><FlaskConical size={17} /> Bloodwork & biomarkers</span><ChevronRight size={17} className="muted" /></button></section>
@@ -171,6 +184,7 @@ export function SettingsPage() {
         <form className="form-grid" onSubmit={saveProfile}><label className="field"><span>Display name</span><input className="input" name="name" defaultValue={auth.user?.user_metadata.full_name ?? ''} required /></label><div className="grid-2"><label className="field"><span>Units</span><select className="select" name="units"><option value="metric">Metric</option><option value="imperial">Imperial</option></select></label><label className="field"><span>Timezone</span><input className="input" name="timezone" defaultValue={Intl.DateTimeFormat().resolvedOptions().timeZone} required /></label><label className="field"><span>Calories</span><input className="input" name="calories" type="number" min="0" defaultValue={nutritionPreferences.data?.calorie_target ?? ''} /></label><label className="field"><span>Protein (g)</span><input className="input" name="protein" type="number" min="0" defaultValue={nutritionPreferences.data?.protein_target_g ?? ''} /></label><label className="field"><span>Fiber (g)</span><input className="input" name="fiber" type="number" min="0" defaultValue={nutritionPreferences.data?.fiber_target_g ?? ''} /></label><label className="field"><span>Steps</span><input className="input" name="steps" type="number" min="0" defaultValue={nutritionPreferences.data?.steps_target ?? ''} /></label><label className="field"><span>Hydration (ml)</span><input className="input" name="water" type="number" min="0" defaultValue={nutritionPreferences.data?.hydration_target_ml ?? ''} /></label></div><button className="btn btn-primary">Save settings</button></form>
         <form className="form-grid section" onSubmit={saveLeetcode}><label className="field"><span>Public LeetCode profile URL (optional)</span><input className="input" name="leetcode" type="url" defaultValue={nutritionPreferences.data?.leetcode_profile_url ?? ''} placeholder="https://leetcode.com/u/username/" /></label><p className="tiny muted">Link only. Dayframe does not scrape or automatically synchronize LeetCode.</p><button className="btn btn-secondary">Save profile link</button></form>
       </Sheet>
+      <Sheet open={panel === 'personalization'} onClose={() => setPanel(null)} title="Your Dayframe priorities" description="Choose what matters now. Every section remains available from navigation."><div className="form-grid"><InterestPicker value={interests} onChange={setInterests}/><button className="btn btn-primary" type="button" disabled={!interests.length} onClick={() => void savePersonalization()}>Save priorities</button></div></Sheet>
       <Sheet open={panel === 'privacy'} onClose={() => setPanel(null)} title="Privacy and limitations" description="Dayframe keeps authority in the database, not the interface."><div className="form-grid"><p className="small">Personal rows are protected by owner-only Row Level Security. Demo data never enters an authenticated account. Browser code receives only the publishable Supabase key.</p><p className="small">Dayframe is not a diagnostic service. Screenshot and document extraction remain unavailable until a secure server provider is configured. Browser notifications cannot guarantee background delivery.</p><button className="btn btn-secondary" type="button" onClick={() => setPanel(null)}>Close</button></div></Sheet>
     </div>
   )

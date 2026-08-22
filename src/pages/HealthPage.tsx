@@ -5,6 +5,7 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { Sheet } from '../components/Sheet'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { usePersonalization } from '../hooks/usePersonalization'
 
 interface LabResult { id: string; test: string; category: string; date: string; result: number; unit: string; lower?: number; upper?: number; provider?: string; notes?: string }
 
@@ -16,6 +17,7 @@ const demoLabs: LabResult[] = [
 export function HealthPage() {
   const navigate = useNavigate()
   const auth = useAuth()
+  const personalization = usePersonalization()
   const [labs, setLabs] = useState<LabResult[]>(() => auth.isDemo ? demoLabs : [])
   const [open, setOpen] = useState(false)
   const [selectedTest, setSelectedTest] = useState(auth.isDemo ? 'Vitamin D' : '')
@@ -45,6 +47,8 @@ export function HealthPage() {
     <div className="page">
       <header className="page-header"><div className="row" style={{ alignItems: 'flex-start' }}><button className="btn btn-secondary btn-icon" type="button" onClick={() => navigate(-1)} aria-label="Go back"><ArrowLeft size={20} /></button><div><p className="eyebrow">Health</p><h1>Bloodwork & biomarkers</h1><p className="muted">Track results over time. Dayframe does not diagnose changes.</p></div></div><button className="btn btn-primary btn-icon" type="button" onClick={() => setOpen(true)} aria-label="Add lab result"><Plus size={20} /></button></header>
 
+      {!personalization.getDomainSetup('health') && <HealthSetup/>}
+
       <div className="insight-callout"><div className="row"><ShieldCheck size={18} /><strong className="small">Private health data</strong></div><p className="muted small" style={{ margin: '7px 0 0' }}>Real entries are stored only in your authenticated Supabase account. The values shown in demo mode are fictional examples.</p></div>
 
       {labs.length > 0 ? <section className="card card-pad section">
@@ -67,3 +71,5 @@ export function HealthPage() {
     </div>
   )
 }
+
+function HealthSetup(){const personalization=usePersonalization();const[saving,setSaving]=useState(false);const[error,setError]=useState('');const submit=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();setSaving(true);setError('');const form=new FormData(event.currentTarget);try{await personalization.saveDomainSetup('health',{focus:String(form.get('focus'))})}catch(value){setError(value instanceof Error?value.message:'Health setup could not be saved.')}finally{setSaving(false)}};return <section className="card card-pad progressive-setup"><p className="eyebrow">Health setup · optional</p><h2>What context matters to you?</h2><p className="muted small">Dayframe tracks records and trends; it does not diagnose or replace medical care.</p><form className="form-grid section" onSubmit={submit}><label className="field"><span>Start with</span><select className="select" name="focus"><option>Bloodwork and biomarkers</option><option>Body measurements</option><option>Sleep and recovery</option><option>A broad health overview</option></select></label>{error&&<p className="field-error">{error}</p>}<div className="row progressive-actions"><button className="btn btn-primary" disabled={saving}>{saving?'Saving…':'Save preference'}</button><button className="btn btn-ghost" type="button" onClick={()=>void personalization.skipDomainSetup('health')}>Skip for now</button></div></form></section>}

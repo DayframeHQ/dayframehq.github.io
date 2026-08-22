@@ -4,20 +4,23 @@ import { useNavigate } from 'react-router-dom'
 import { useData } from '../context/DataContext'
 import { useNutritionSummary, usePlannedSessions, useReviews } from '../hooks/useV2'
 import { dateKey, nutritionTotal } from '../lib/v2'
+import { usePersonalization } from '../hooks/usePersonalization'
+import { focusCategories } from '../lib/personalization'
 
 export function TodayPage(){
   const data=useData();const navigate=useNavigate();const date=data.selectedDate;const key=dateKey(date);const start=dateKey(startOfWeek(date,{weekStartsOn:1}));const end=dateKey(addDays(new Date(`${start}T12:00:00`),6))
-  const planned=usePlannedSessions(key,key);const reviews=useReviews(key,key);const summary=useNutritionSummary(key)
+  const planned=usePlannedSessions(key,key);const reviews=useReviews(key,key);const summary=useNutritionSummary(key);const personalization=usePersonalization()
   const train=planned.data?.find((item)=>item.domain==='train');const study=planned.data?.find((item)=>item.domain==='study');const nutrition=nutritionTotal(summary.data,data.meals.map((meal)=>({...meal,fiber:0})))
   const reminders=data.reminders.filter((item)=>!item.completed).slice(0,3)
   return <div className="page">
-    <header className="page-header"><div><p className="eyebrow">{format(date,'EEEE, MMMM d')}</p><h1>{isSameDay(date,new Date())?'Today, clearly.':'Your day in context.'}</h1><p className="muted">Train consistently. Study consistently. See whether you are progressing.</p></div><button className="btn btn-secondary btn-icon" aria-label="Today calendar"><CalendarDays size={19}/></button></header>
+    <header className="page-header"><div><p className="eyebrow">{format(date,'EEEE, MMMM d')}</p><h1>{isSameDay(date,new Date())?'Today, clearly.':'Your day in context.'}</h1><p className="muted">The parts of your life that matter now, placed first.</p></div><button className="btn btn-secondary btn-icon" aria-label="Today calendar"><CalendarDays size={19}/></button></header>
     <CalendarStrip date={date} onChange={data.setSelectedDate}/>
     {(planned.error||summary.error)&&<div className="auth-message section"><strong>V2 database update needed.</strong><br/><span className="small">Apply migrations 202608220002 and 202608220003 in Supabase, then reload. Existing V1 data remains safe.</span></div>}
-    <div className="today-focus-grid section">
-      <FocusCard icon={<Dumbbell size={20}/>} label="Train" title={train?.title??'No workout scheduled'} detail={train?`${train.estimated_minutes??60} min · ${train.status.replace('_',' ')}`:'Choose or schedule a program in Train.'} action={train?.status==='active'?'Resume':'Open Train'} onClick={()=>navigate('/train')} status={train?.status}/>
-      <FocusCard icon={<BookOpen size={20}/>} label="Study" title={study?.title??'No study session scheduled'} detail={study?`${study.estimated_minutes??60} min · ${study.planned_items?.length??0} tasks${reviews.data?.length?` · ${reviews.data.length} review due`:''}`:'Choose a roadmap or plan the next block.'} action={study?.status==='active'?'Resume':'Open Study'} onClick={()=>navigate('/study')} status={study?.status}/>
-    </div>
+    <div className="today-focus-grid section">{focusCategories(personalization.interests).map((category) => category === 'Train'
+      ? <FocusCard key={category} icon={<Dumbbell size={20}/>} label="Train" title={train?.title??'No workout scheduled'} detail={train?`${train.estimated_minutes??60} min · ${train.status.replace('_',' ')}`:'Choose or schedule a program in Train.'} action={train?.status==='active'?'Resume':'Open Train'} onClick={()=>navigate('/train')} status={train?.status}/>
+      : category === 'Study' ? <FocusCard key={category} icon={<BookOpen size={20}/>} label="Study" title={study?.title??'No study session scheduled'} detail={study?`${study.estimated_minutes??60} min · ${study.planned_items?.length??0} tasks${reviews.data?.length?` · ${reviews.data.length} review due`:''}`:'Choose a roadmap or plan the next block.'} action={study?.status==='active'?'Resume':'Open Study'} onClick={()=>navigate('/study')} status={study?.status}/>
+      : category === 'Health' ? <FocusCard key={category} icon={<HeartPulse size={20}/>} label="Health" title={nutrition.calories ? `${Math.round(nutrition.calories)} kcal logged` : 'Build today’s health context'} detail={`${data.daily.steps.toLocaleString()} steps · ${data.daily.sleepHours ? `${data.daily.sleepHours.toFixed(1)} h sleep` : 'sleep not logged'}`} action="Open Nutrition" onClick={()=>navigate('/nutrition')}/>
+      : <FocusCard key={category} icon={<CalendarDays size={20}/>} label="Life" title={reminders.length ? `${reminders.length} open reminder${reminders.length === 1 ? '' : 's'}` : 'Your day is clear'} detail="Keep goals, reminders and plans in one place." action="Open Life" onClick={()=>navigate('/life')}/>)}</div>
     <section className="section"><div className="section-title"><h2>Health context</h2><div className="row" style={{gap:12}}><button className="link-button small" onClick={()=>navigate('/nutrition')}>Nutrition</button><button className="link-button small" onClick={()=>navigate('/health')}>Health</button></div></div><div className="card card-pad compact-health">
       <MiniMetric icon={<BedDouble/>} value={data.daily.sleepHours?`${data.daily.sleepHours.toFixed(1)} h`:'—'} label="sleep"/><MiniMetric icon={<Footprints/>} value={data.daily.steps.toLocaleString()} label="steps"/><MiniMetric icon={<Droplets/>} value={`${data.daily.waterMl} ml`} label="water"/><MiniMetric icon={<Utensils/>} value={nutrition.calories?`${Math.round(nutrition.calories)}`:'—'} label={nutrition.source==='summary'?'kcal · summary':'kcal · itemized'}/>
     </div></section>

@@ -4,6 +4,8 @@ Dayframe is a mobile-first personal operating system centered on three questions
 
 The production app uses Supabase Auth and Postgres. Its interactive demo is fictional, stays in that browser, and is never copied into an authenticated account.
 
+New accounts complete one low-friction step: name and the areas they want to use. Dayframe stores those choices in authenticated user metadata, ranks Today and Quick Add around them, and asks domain-specific questions only on the first visit to Train or Study. Every setup can be skipped and interests remain editable in Settings; no extra migration is required.
+
 ## Product structure
 
 Primary navigation:
