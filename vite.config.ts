@@ -14,8 +14,8 @@ export default defineConfig({
         name: 'Dayframe',
         short_name: 'Dayframe',
         description: 'A calm personal operating system for your health and life.',
-        theme_color: '#F5F0E7',
-        background_color: '#F5F0E7',
+        theme_color: '#181513',
+        background_color: '#181513',
         display: 'standalone',
         start_url: './',
         icons: [
