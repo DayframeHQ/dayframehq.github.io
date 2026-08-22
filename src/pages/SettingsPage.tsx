@@ -23,6 +23,8 @@ export function SettingsPage() {
   const [pendingImport, setPendingImport] = useState<Record<string, unknown> | null>(null)
   const [importing, setImporting] = useState(false)
   const [deleteText, setDeleteText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const [message, setMessage] = useState('')
   const [panel, setPanel] = useState<'profile' | 'personalization' | 'privacy' | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
@@ -108,11 +110,20 @@ export function SettingsPage() {
       setDeleteText('')
       return
     }
-    if (supabase) {
-      const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' })
-      if (error) { setMessage('Account deletion function is not configured yet. See Supabase setup in README.'); return }
-      await auth.signOut()
+    if (!supabase || !auth.user) { setMessage('Sign in again before deleting your account.'); return }
+    setDeleting(true)
+    setDeleteError('')
+    const { error } = await supabase.rpc('delete_current_user')
+    if (error) {
+      const migrationMissing = error.code === 'PGRST202' || error.message.includes('delete_current_user')
+      setDeleteError(migrationMissing ? 'Account deletion needs the latest Supabase migration. Apply 202608230001_secure_account_deletion.sql, then try again.' : `Account was not deleted: ${error.message}`)
+      setDeleting(false)
+      return
     }
+    setDeleteOpen(false)
+    setDeleteText('')
+    await auth.signOut()
+    navigate('/')
   }
 
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
@@ -167,11 +178,11 @@ export function SettingsPage() {
 
         <section className="card card-pad"><div className="row"><span className="icon-bubble"><Shield size={19} /></span><strong>Privacy & support</strong></div><button className="settings-row" type="button" onClick={() => setPanel('privacy')}><span className="row"><HelpCircle size={17} /> Privacy, help & limitations</span><ChevronRight size={17} className="muted" /></button></section>
 
-        <section className="card card-pad"><button className="settings-row" type="button" onClick={() => void auth.signOut()}><span className="row"><LogOut size={17} /> {auth.isDemo ? 'Leave demo and sign in' : 'Sign out'}</span><ChevronRight size={17} className="muted" /></button><button className="settings-row" style={{ color: 'var(--danger)' }} type="button" onClick={() => setDeleteOpen(true)}><span className="row"><Trash2 size={17} /> {auth.isDemo ? 'Reset demo data' : 'Delete account and data'}</span><ChevronRight size={17} /></button></section>
+        <section className="card card-pad"><button className="settings-row" type="button" onClick={() => void auth.signOut()}><span className="row"><LogOut size={17} /> {auth.isDemo ? 'Leave demo and sign in' : 'Sign out'}</span><ChevronRight size={17} className="muted" /></button><button className="settings-row" style={{ color: 'var(--danger)' }} type="button" onClick={() => { setDeleteError(''); setDeleteOpen(true) }}><span className="row"><Trash2 size={17} /> {auth.isDemo ? 'Reset demo data' : 'Delete account and data'}</span><ChevronRight size={17} /></button></section>
       </div>
 
       <Sheet open={deleteOpen} onClose={() => setDeleteOpen(false)} title={auth.isDemo ? 'Reset demo data?' : 'Delete your account?'} description={auth.isDemo ? 'This returns the interactive preview to its starting state.' : 'This permanently removes your account and every user-owned row. This cannot be undone.'}>
-        <div className="form-grid"><label className="field"><span>Type DELETE to confirm</span><input className="input" value={deleteText} onChange={(event) => setDeleteText(event.target.value)} autoComplete="off" /></label><button className="btn" style={{ color: 'white', background: 'var(--danger)' }} disabled={deleteText !== 'DELETE'} type="button" onClick={() => void deleteAccount()}><Trash2 size={17} /> Confirm {auth.isDemo ? 'reset' : 'deletion'}</button></div>
+        <div className="form-grid"><label className="field"><span>Type DELETE to confirm</span><input className="input" value={deleteText} onChange={(event) => setDeleteText(event.target.value)} autoComplete="off" disabled={deleting} /></label>{deleteError&&<p className="field-error" role="alert">{deleteError}</p>}<button className="btn" style={{ color: 'white', background: 'var(--danger)' }} disabled={deleteText !== 'DELETE' || deleting} type="button" onClick={() => void deleteAccount()}><Trash2 size={17} /> {deleting ? 'Deleting account…' : `Confirm ${auth.isDemo ? 'reset' : 'deletion'}`}</button></div>
       </Sheet>
       <Sheet open={importOpen} onClose={() => setImportOpen(false)} title="Review private import" description="Only supported personal tables will be written, and every row is forced to your signed-in user ID.">
         <div className="form-grid">

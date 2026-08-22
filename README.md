@@ -57,10 +57,11 @@ Find them in Supabase Dashboard → Project Settings → API. Never put a secret
 
 ## Apply the database migrations
 
-The V1 migration has already been applied and must not be edited or rerun. Apply these two additive V2 migrations in order:
+The V1 migration has already been applied and must not be edited or rerun. Apply the additive migrations in order:
 
 1. `supabase/migrations/202608220002_v2_plan_study_schema.sql`
 2. `supabase/migrations/202608220003_v2_curated_templates.sql`
+3. `supabase/migrations/202608230001_secure_account_deletion.sql`
 
 CLI:
 
@@ -91,11 +92,7 @@ Email/password, verified email, magic links, Google OAuth, and session restorati
 - Google authorized redirect URI: `https://ubbxllmbzsmebqlpapcs.supabase.co/auth/v1/callback`.
 - Paste the Google Client ID and Client Secret into Supabase Authentication → Providers → Google. The secret stays in Supabase.
 
-Deploy authenticated account deletion separately:
-
-```bash
-npx supabase functions deploy delete-account
-```
+Authenticated account deletion uses the `delete_current_user()` database RPC from migration `202608230001`. It derives the target exclusively from `auth.uid()`, so callers cannot supply another user ID. Deleting that auth user activates the existing foreign-key cascades for user-owned data and requires no browser secret or separately deployed Edge Function.
 
 ## Optional import adapter
 

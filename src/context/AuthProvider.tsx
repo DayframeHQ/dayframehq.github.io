@@ -79,6 +79,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       sessionStorage.removeItem('dayframe_demo')
       setIsDemo(false)
       if (supabase) await supabase.auth.signOut()
+      setSession(null)
     },
   }), [isDemo, loading, session])
 
