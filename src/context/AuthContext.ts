@@ -10,6 +10,8 @@ export interface AuthState {
   enterDemo: () => void
   signInWithGoogle: () => Promise<void>
   signInWithEmail: (email: string) => Promise<void>
+  signInWithPassword: (email: string, password: string) => Promise<void>
+  signUpWithPassword: (email: string, password: string) => Promise<{ needsEmailVerification: boolean }>
   signOut: () => Promise<void>
 }
 

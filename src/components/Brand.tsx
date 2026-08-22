@@ -1,9 +1,7 @@
-import { CalendarRange } from 'lucide-react'
-
 export function Brand() {
   return (
-    <div className="brand-lockup" aria-label="Dayframe temporary wordmark">
-      <span className="brand-placeholder" title="Temporary icon — final logo pending approval"><CalendarRange size={18} /></span>
+    <div className="brand-lockup" aria-label="Dayframe">
+      <img className="brand-mark" src="/brand/dayframe-gada.svg" alt="" />
       <span>Dayframe</span>
     </div>
   )

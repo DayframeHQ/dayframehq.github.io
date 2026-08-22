@@ -6,7 +6,7 @@ The app includes an interactive browser-only demo. A real account starts complet
 
 ## What is implemented
 
-- Supabase Google OAuth and email magic-link authentication with session restoration
+- Supabase Google OAuth, verified email/password and email magic-link authentication with session restoration
 - First-login onboarding for profile, units, timezone, targets and training schedule
 - Five-tab responsive app shell: Today, Train, Food, Life and Insights
 - Calendar/date navigation and historical daily editing foundation
@@ -102,15 +102,18 @@ The pgTAP checks in [`supabase/tests/rls.sql`](supabase/tests/rls.sql) verify th
 
 ## Authentication setup
 
-### Email magic link
+### Email and password
 
 1. Open Supabase Dashboard → Authentication → Providers → Email.
-2. Enable Email and confirm that magic-link/OTP sign-in is allowed.
-3. Open Authentication → URL Configuration.
-4. Set Site URL to `https://dayframehq.github.io` for production.
-5. Add redirect URLs:
+2. Enable the Email provider.
+3. Turn on **Confirm email** so new users must verify ownership before password login. Dayframe shows a verification message after signup and Supabase sends the confirmation email.
+4. Open Authentication → URL Configuration.
+5. Set Site URL to `https://dayframehq.github.io` for production.
+6. Add redirect URLs:
    - `http://localhost:5173/**`
    - `https://dayframehq.github.io/**`
+
+The same Email provider powers password login and magic links. Magic links are restricted to existing accounts; creating a new account requires setting a password.
 
 For production, configure a custom SMTP provider under Authentication → Email if reliable delivery and a branded sender are important. Supabase's default SMTP is suitable only for initial testing and is rate-limited.
 
@@ -212,7 +215,7 @@ https://dayframehq.github.io
 
 ## Current limitations
 
-- The final logo/app icon is intentionally pending approval; the UI uses a neutral temporary calendar icon.
+- The primary gada-inspired strength/progress mark and alternate Arjuna focus/goal mark are stored as two-colour SVGs in `public/brand/`.
 - Browser notifications cannot guarantee background delivery. Reliable push requires a server-side scheduler plus Web Push/FCM.
 - Wearable, Apple Health, barcode, restaurant and nutrition-provider integrations are adapter placeholders, not V1 claims.
 - Offline writes use a simple ordered queue. Concurrent edits across several offline devices are not merged with CRDT semantics.
@@ -226,6 +229,9 @@ https://dayframehq.github.io
 2. Expand integration tests against a local Supabase stack, including offline queue replay and completed workout history.
 3. Add server-scheduled Web Push reminders and optional wearable import adapters.
 
-## Brand status
+## Brand assets
 
-Three logo directions have been generated for review: calendar/progress, sunrise/rhythm and a modular lowercase “d”. No generated logo asset is committed until a direction is approved, so the chosen mark can then be rebuilt cleanly for app icon, favicon, light/dark and monochrome use.
+- `public/brand/dayframe-gada.svg` — primary logo and app icon
+- `public/brand/dayframe-arjuna.svg` — approved alternate logo
+
+Both assets use only Obsidian `#181513` and Porcelain `#F5F0E7`.

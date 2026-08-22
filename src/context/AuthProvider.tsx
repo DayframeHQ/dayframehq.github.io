@@ -43,9 +43,27 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (!supabase) return
       const { error } = await supabase.auth.signInWithOtp({
         email,
+        options: {
+          emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
+          shouldCreateUser: false,
+        },
+      })
+      if (error) throw error
+    },
+    signInWithPassword: async (email: string, password: string) => {
+      if (!supabase) return
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
+    },
+    signUpWithPassword: async (email: string, password: string) => {
+      if (!supabase) return { needsEmailVerification: false }
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
         options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` },
       })
       if (error) throw error
+      return { needsEmailVerification: data.session === null }
     },
     signOut: async () => {
       sessionStorage.removeItem('dayframe_demo')

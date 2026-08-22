@@ -9,16 +9,23 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: [],
+      includeAssets: ['brand/dayframe-gada.svg', 'brand/dayframe-arjuna.svg'],
       manifest: {
         name: 'Dayframe',
         short_name: 'Dayframe',
         description: 'A calm personal operating system for your health and life.',
-        theme_color: '#f7f7f2',
-        background_color: '#f7f7f2',
+        theme_color: '#F5F0E7',
+        background_color: '#F5F0E7',
         display: 'standalone',
         start_url: './',
-        icons: [],
+        icons: [
+          {
+            src: 'brand/dayframe-gada.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any maskable',
+          },
+        ],
       },
       workbox: {
         navigateFallback: 'index.html',
