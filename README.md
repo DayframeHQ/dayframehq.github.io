@@ -165,7 +165,7 @@ Supported top-level JSON envelope:
 }
 ```
 
-The current UI validates the envelope before import. Bulk transactional insertion should be added as a protected Supabase RPC before importing a large historical dataset; this prevents a half-completed import.
+The UI validates the envelope, shows record counts for review, forces every imported row to the signed-in user ID, and writes only the allow-listed personal tables after confirmation. For very large historical datasets, a future protected transactional RPC would additionally prevent a half-completed import if the connection fails midway.
 
 ## Development commands
 
@@ -217,7 +217,7 @@ https://dayframehq.github.io
 - Wearable, Apple Health, barcode, restaurant and nutrition-provider integrations are adapter placeholders, not V1 claims.
 - Offline writes use a simple ordered queue. Concurrent edits across several offline devices are not merged with CRDT semantics.
 - Progress-photo upload is deferred.
-- Large JSON imports need the transactional RPC noted above; export and validation already work.
+- Large JSON imports are not yet a single database transaction; export first before importing into a non-empty account.
 - Insights become meaningful only after enough authenticated history exists; Dayframe does not invent conclusions for clean accounts.
 
 ## Recommended roadmap

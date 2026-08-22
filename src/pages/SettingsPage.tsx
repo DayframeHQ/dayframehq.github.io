@@ -12,6 +12,9 @@ export function SettingsPage() {
   const data = useData()
   const [dark, setDark] = useState(() => localStorage.getItem('dayframe_theme') === 'dark')
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [pendingImport, setPendingImport] = useState<Record<string, unknown> | null>(null)
+  const [importing, setImporting] = useState(false)
   const [deleteText, setDeleteText] = useState('')
   const [message, setMessage] = useState('')
   const importRef = useRef<HTMLInputElement>(null)
@@ -21,13 +24,23 @@ export function SettingsPage() {
     localStorage.setItem('dayframe_theme', dark ? 'dark' : 'light')
   }, [dark])
 
-  const exportJson = () => {
-    const payload = { exported_at: new Date().toISOString(), version: 1, daily: data.daily, meals: data.meals, reminders: data.reminders, goals: data.goals, travel_plans: data.trips, workout: data.workout }
+  const exportJson = async () => {
+    let payload: Record<string, unknown> = { exported_at: new Date().toISOString(), version: 1, daily: data.daily, meals: data.meals, reminders: data.reminders, goals: data.goals, travel_plans: data.trips, workout: data.workout }
+    if (!auth.isDemo && supabase) {
+      const client = supabase
+      const results = await Promise.all(exportTables.map(async (table) => {
+        const { data: rows, error } = await client.from(table).select('*')
+        if (error) throw error
+        return [table, rows ?? []] as const
+      }))
+      payload = { exported_at: new Date().toISOString(), version: 1, ...Object.fromEntries(results) }
+    }
     download(`dayframe-export-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(payload, null, 2), 'application/json')
   }
 
-  const exportCsv = () => {
-    const rows = [['name', 'meal', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'source'], ...data.meals.map((item) => [item.name, item.meal, item.calories, item.protein, item.carbs, item.fat, item.source])]
+  const exportCsv = async () => {
+    const mealRows = !auth.isDemo && supabase ? (await supabase.from('meal_entries').select('name,meal_type,calories,protein_g,carbs_g,fat_g,source').order('entry_date')).data ?? [] : data.meals.map((item) => ({ name: item.name, meal_type: item.meal, calories: item.calories, protein_g: item.protein, carbs_g: item.carbs, fat_g: item.fat, source: item.source }))
+    const rows = [['name', 'meal', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'source'], ...mealRows.map((item) => [item.name, item.meal_type, item.calories, item.protein_g, item.carbs_g, item.fat_g, item.source])]
     download('dayframe-meals.csv', rows.map((row) => row.map(csvCell).join(',')).join('\n'), 'text/csv')
   }
 
@@ -36,9 +49,42 @@ export function SettingsPage() {
     try {
       const parsed = JSON.parse(await file.text()) as Record<string, unknown>
       if (!parsed.version) throw new Error('Missing import version')
-      setMessage('Import file validated. Database import is available when Supabase is connected.')
+      const rowCount = importTables.reduce((sum, table) => sum + (Array.isArray(parsed[table]) ? parsed[table].length : 0), 0)
+      if (rowCount === 0 && !parsed.profile) throw new Error('No supported records')
+      setPendingImport(parsed)
+      setImportOpen(true)
     } catch {
       setMessage('That file is not a valid Dayframe JSON export.')
+    }
+  }
+
+  const confirmImport = async () => {
+    if (!pendingImport || !auth.user || !supabase) {
+      setMessage('Connect and sign in with Supabase before importing private data.')
+      return
+    }
+    setImporting(true)
+    try {
+      const profile = pendingImport.profile
+      if (profile && typeof profile === 'object' && !Array.isArray(profile)) {
+        const values = profile as Record<string, unknown>
+        await supabase.from('profiles').update({ display_name: values.display_name, timezone: values.timezone, preferred_units: values.preferred_units }).eq('user_id', auth.user.id)
+      }
+      for (const table of importTables) {
+        const input = pendingImport[table]
+        if (!Array.isArray(input) || input.length === 0) continue
+        const rows = input.map((row) => ({ ...(row as Record<string, unknown>), user_id: auth.user!.id }))
+        const { error } = await supabase.from(table).upsert(rows)
+        if (error) throw error
+      }
+      setImportOpen(false)
+      setPendingImport(null)
+      setMessage('Private data imported successfully. Refreshing your account view…')
+      window.setTimeout(() => window.location.reload(), 900)
+    } catch (error) {
+      setMessage(error instanceof Error ? `Import stopped: ${error.message}` : 'Import could not be completed.')
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -70,7 +116,7 @@ export function SettingsPage() {
 
         <section className="card card-pad"><div className="row"><span className="icon-bubble"><Palette size={19} /></span><strong>Appearance & alerts</strong></div><button className="settings-row" type="button" onClick={() => setDark((value) => !value)}><span className="row"><Moon size={17} /> Dark mode</span><span className={`switch ${dark ? 'on' : ''}`} role="switch" aria-checked={dark}><span /></span></button><button className="settings-row" type="button"><span className="row"><Bell size={17} /> Notification permission</span><span className="badge badge-neutral">Browser only</span></button></section>
 
-        <section className="card card-pad"><div className="row"><span className="icon-bubble"><Database size={19} /></span><strong>Your data</strong></div><button className="settings-row" type="button" onClick={exportJson}><span className="row"><FileJson size={17} /> Export all data as JSON</span><Download size={17} className="muted" /></button><button className="settings-row" type="button" onClick={exportCsv}><span className="row"><Download size={17} /> Export meals as CSV</span><ChevronRight size={17} className="muted" /></button><button className="settings-row" type="button" onClick={() => importRef.current?.click()}><span className="row"><Upload size={17} /> Import Dayframe JSON</span><ChevronRight size={17} className="muted" /></button><input ref={importRef} type="file" accept="application/json" hidden onChange={(event) => void importJson(event.target.files?.[0])} /><button className="settings-row" type="button" onClick={() => navigate('/health')}><span className="row"><FlaskConical size={17} /> Bloodwork & biomarkers</span><ChevronRight size={17} className="muted" /></button></section>
+        <section className="card card-pad"><div className="row"><span className="icon-bubble"><Database size={19} /></span><strong>Your data</strong></div><button className="settings-row" type="button" onClick={() => void exportJson()}><span className="row"><FileJson size={17} /> Export all data as JSON</span><Download size={17} className="muted" /></button><button className="settings-row" type="button" onClick={() => void exportCsv()}><span className="row"><Download size={17} /> Export meals as CSV</span><ChevronRight size={17} className="muted" /></button><button className="settings-row" type="button" onClick={() => importRef.current?.click()}><span className="row"><Upload size={17} /> Import Dayframe JSON</span><ChevronRight size={17} className="muted" /></button><input ref={importRef} type="file" accept="application/json" hidden onChange={(event) => void importJson(event.target.files?.[0])} /><button className="settings-row" type="button" onClick={() => navigate('/health')}><span className="row"><FlaskConical size={17} /> Bloodwork & biomarkers</span><ChevronRight size={17} className="muted" /></button></section>
 
         <section className="card card-pad"><div className="row"><span className="icon-bubble"><Shield size={19} /></span><strong>Privacy & support</strong></div><button className="settings-row" type="button"><span>Privacy model</span><ChevronRight size={17} className="muted" /></button><button className="settings-row" type="button"><span className="row"><HelpCircle size={17} /> Help & current limitations</span><ChevronRight size={17} className="muted" /></button></section>
 
@@ -80,9 +126,19 @@ export function SettingsPage() {
       <Sheet open={deleteOpen} onClose={() => setDeleteOpen(false)} title={auth.isDemo ? 'Reset demo data?' : 'Delete your account?'} description={auth.isDemo ? 'This returns the interactive preview to its starting state.' : 'This permanently removes your account and every user-owned row. This cannot be undone.'}>
         <div className="form-grid"><label className="field"><span>Type DELETE to confirm</span><input className="input" value={deleteText} onChange={(event) => setDeleteText(event.target.value)} autoComplete="off" /></label><button className="btn" style={{ color: 'white', background: 'var(--danger)' }} disabled={deleteText !== 'DELETE'} type="button" onClick={() => void deleteAccount()}><Trash2 size={17} /> Confirm {auth.isDemo ? 'reset' : 'deletion'}</button></div>
       </Sheet>
+      <Sheet open={importOpen} onClose={() => setImportOpen(false)} title="Review private import" description="Only supported personal tables will be written, and every row is forced to your signed-in user ID.">
+        <div className="form-grid">
+          <div className="card card-quiet card-pad">{importTables.map((table) => { const count = Array.isArray(pendingImport?.[table]) ? pendingImport[table].length : 0; return count > 0 ? <div className="row-between small" key={table} style={{ padding: '5px 0' }}><span>{table.replaceAll('_', ' ')}</span><strong>{count}</strong></div> : null })}</div>
+          <p className="muted small">Existing rows with matching IDs will be updated. This import is private, but it cannot be undone as one transaction; export your account first if it already contains data.</p>
+          <button className="btn btn-primary" type="button" disabled={importing} onClick={() => void confirmImport()}>{importing ? 'Importing…' : 'Confirm private import'}</button>
+        </div>
+      </Sheet>
     </div>
   )
 }
+
+const exportTables = ['profiles','user_preferences','workout_programs','workout_program_days','program_exercises','exercise_substitutions','workout_sessions','exercise_logs','set_logs','foods','recipes','recipe_ingredients','meal_entries','activity_logs','body_measurements','sleep_logs','recovery_logs','pain_logs','supplements','supplement_logs','lab_results','goals','wishes','travel_plans','travel_items','projects','notes','reminders']
+const importTables = ['body_measurements','lab_results','meal_entries','activity_logs','pain_logs','goals','travel_plans','notes']
 
 function download(filename: string, content: string, type: string) {
   const url = URL.createObjectURL(new Blob([content], { type }))
