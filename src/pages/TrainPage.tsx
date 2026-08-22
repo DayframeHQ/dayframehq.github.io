@@ -59,7 +59,7 @@ export function TrainPage() {
 
       {!active && <>
         <section className="card today-hero">
-          <div className="row-between"><span className="badge" style={{ color: 'white', background: 'rgba(255,255,255,.12)' }}>4-Day Recomp</span><span className="muted small">Week 6</span></div>
+          <div className="row-between"><span className="badge" style={{ color: '#F5F0E7', background: 'rgba(245,240,231,.12)' }}>4-Day Recomp</span><span className="muted small">Week 6</span></div>
           <div className="hero-workout"><div><p className="muted small" style={{ marginBottom: 5 }}>{workout.length ? 'Up next' : 'Available template'}</p><h2>Upper B · Push emphasis</h2><p className="muted small" style={{ margin: 0 }}>4 primary movements · 12 working sets</p></div><button className="btn btn-primary" type="button" onClick={() => workout.length ? setActive(true) : copyStarterTemplate()}>{workout.length ? <><Play size={17} fill="currentColor" /> Start</> : <><Plus size={17} /> Copy template</>}</button></div>
         </section>
 

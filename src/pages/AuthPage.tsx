@@ -40,12 +40,12 @@ export function AuthPage() {
             <div style={{ filter: 'brightness(0) invert(1)', display: 'inline-block' }}><Brand /></div>
           </div>
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <p className="eyebrow" style={{ color: '#73dda0' }}>Your day, in one clear frame</p>
+            <p className="eyebrow" style={{ color: '#F5F0E7' }}>Your day, in one clear frame</p>
             <h1>Build a life you can actually see.</h1>
             <p>Training, nutrition, recovery and the things that matter beyond them — thoughtfully connected, never cluttered.</p>
             <div className="row" style={{ flexWrap: 'wrap', marginTop: 24 }}>
-              <span className="badge" style={{ background: 'rgba(255,255,255,.1)', color: 'white' }}><Check size={12} /> Private by design</span>
-              <span className="badge" style={{ background: 'rgba(255,255,255,.1)', color: 'white' }}><Sparkles size={12} /> Calm, useful insights</span>
+              <span className="badge" style={{ background: 'rgba(245,240,231,.1)', color: '#F5F0E7' }}><Check size={12} /> Private by design</span>
+              <span className="badge" style={{ background: 'rgba(245,240,231,.1)', color: '#F5F0E7' }}><Sparkles size={12} /> Calm, useful insights</span>
             </div>
           </div>
         </section>

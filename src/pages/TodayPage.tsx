@@ -44,7 +44,7 @@ export function TodayPage() {
       <section className="card today-hero section">
         <div className="hero-top">
           <div>
-            <span className="badge" style={{ color: 'white', background: 'rgba(255,255,255,.12)' }}><Dumbbell size={12} /> Training</span>
+            <span className="badge" style={{ color: '#F5F0E7', background: 'rgba(245,240,231,.12)' }}><Dumbbell size={12} /> Training</span>
             <p className="muted small" style={{ margin: '12px 0 0' }}>{schedule ? 'Scheduled today' : 'No resistance session scheduled'}</p>
           </div>
           <span className="tiny muted">{schedule ? '0% complete' : 'Recovery day'}</span>
