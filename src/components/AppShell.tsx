@@ -44,7 +44,10 @@ export function AppShell({ children }: PropsWithChildren) {
         </div>
       </aside>
 
-      <main className="app-main">{children}</main>
+      <main className="app-main">
+        <header className="mobile-appbar"><Brand/><NavLink to="/settings" className={({ isActive }) => cn('mobile-profile-link', isActive && 'active')} aria-label="Open profile and settings"><CircleUserRound size={22}/><span>Profile</span></NavLink></header>
+        {children}
+      </main>
 
       <button className="add-fab" type="button" onClick={() => setQuickOpen(true)} aria-label="Quick add"><Plus size={25} /></button>
       <nav className="bottom-nav" aria-label="Primary navigation">

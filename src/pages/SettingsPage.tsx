@@ -25,6 +25,7 @@ export function SettingsPage() {
   const [deleteText, setDeleteText] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false)
   const [message, setMessage] = useState('')
   const [panel, setPanel] = useState<'profile' | 'personalization' | 'privacy' | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
@@ -101,13 +102,14 @@ export function SettingsPage() {
   }
 
   const deleteAccount = async () => {
-    if (deleteText !== 'DELETE') return
+    if (deleteText !== 'DELETE MY ACCOUNT' || !deleteAcknowledged) return
     if (auth.isDemo) {
       data.resetDemo()
       resetDemoV2()
       setMessage('Demo data reset.')
       setDeleteOpen(false)
       setDeleteText('')
+      setDeleteAcknowledged(false)
       return
     }
     if (!supabase || !auth.user) { setMessage('Sign in again before deleting your account.'); return }
@@ -122,6 +124,7 @@ export function SettingsPage() {
     }
     setDeleteOpen(false)
     setDeleteText('')
+    setDeleteAcknowledged(false)
     await auth.signOut()
     navigate('/')
   }
@@ -178,11 +181,13 @@ export function SettingsPage() {
 
         <section className="card card-pad"><div className="row"><span className="icon-bubble"><Shield size={19} /></span><strong>Privacy & support</strong></div><button className="settings-row" type="button" onClick={() => setPanel('privacy')}><span className="row"><HelpCircle size={17} /> Privacy, help & limitations</span><ChevronRight size={17} className="muted" /></button></section>
 
-        <section className="card card-pad"><button className="settings-row" type="button" onClick={() => void auth.signOut()}><span className="row"><LogOut size={17} /> {auth.isDemo ? 'Leave demo and sign in' : 'Sign out'}</span><ChevronRight size={17} className="muted" /></button><button className="settings-row" style={{ color: 'var(--danger)' }} type="button" onClick={() => { setDeleteError(''); setDeleteOpen(true) }}><span className="row"><Trash2 size={17} /> {auth.isDemo ? 'Reset demo data' : 'Delete account and data'}</span><ChevronRight size={17} /></button></section>
+        <section className="card card-pad"><button className="settings-row" type="button" onClick={() => void auth.signOut()}><span className="row"><LogOut size={17} /> {auth.isDemo ? 'Leave demo and sign in' : 'Sign out'}</span><ChevronRight size={17} className="muted" /></button></section>
+
+        <section className="card card-pad danger-zone"><p className="eyebrow">Danger zone</p><div className="row" style={{ alignItems: 'flex-start' }}><span className="danger-icon"><Trash2 size={19}/></span><div><strong>{auth.isDemo ? 'Reset this demo' : 'Permanently delete Dayframe'}</strong><p className="small" style={{ margin: '6px 0 0' }}>{auth.isDemo ? 'Return the local preview to its original fictional data.' : 'Your account, history, plans, notes and health records will be gone. There is no recovery button after this.'}</p></div></div><button className="btn btn-danger-outline section" type="button" onClick={() => { setDeleteError(''); setDeleteText(''); setDeleteAcknowledged(false); setDeleteOpen(true) }}>{auth.isDemo ? 'Reset demo data' : 'Delete my account'}</button></section>
       </div>
 
-      <Sheet open={deleteOpen} onClose={() => setDeleteOpen(false)} title={auth.isDemo ? 'Reset demo data?' : 'Delete your account?'} description={auth.isDemo ? 'This returns the interactive preview to its starting state.' : 'This permanently removes your account and every user-owned row. This cannot be undone.'}>
-        <div className="form-grid"><label className="field"><span>Type DELETE to confirm</span><input className="input" value={deleteText} onChange={(event) => setDeleteText(event.target.value)} autoComplete="off" disabled={deleting} /></label>{deleteError&&<p className="field-error" role="alert">{deleteError}</p>}<button className="btn" style={{ color: 'white', background: 'var(--danger)' }} disabled={deleteText !== 'DELETE' || deleting} type="button" onClick={() => void deleteAccount()}><Trash2 size={17} /> {deleting ? 'Deleting account…' : `Confirm ${auth.isDemo ? 'reset' : 'deletion'}`}</button></div>
+      <Sheet open={deleteOpen} onClose={() => setDeleteOpen(false)} title={auth.isDemo ? 'Reset demo data?' : 'Before you leave…'} description={auth.isDemo ? 'This returns the interactive preview to its starting state.' : 'You built a history here. If Dayframe has not earned a place in your day, you can leave cleanly—just make sure nothing worth keeping is left behind.'}>
+        <div className="form-grid"><div className="danger-note"><strong>This is permanent.</strong><p className="small">{auth.isDemo ? 'Only fictional data stored in this browser will be reset.' : 'Your profile and all private records will be deleted. Export your data first if you may want it later.'}</p></div><label className="row small delete-ack"><input type="checkbox" checked={deleteAcknowledged} onChange={(event)=>setDeleteAcknowledged(event.target.checked)} disabled={deleting}/> I understand this cannot be undone.</label><label className="field"><span>Type <strong>DELETE MY ACCOUNT</strong> to confirm</span><input className="input" value={deleteText} onChange={(event) => setDeleteText(event.target.value)} autoComplete="off" disabled={deleting} /></label>{deleteError&&<p className="field-error" role="alert">{deleteError}</p>}<button className="btn btn-danger" disabled={deleteText !== 'DELETE MY ACCOUNT' || !deleteAcknowledged || deleting} type="button" onClick={() => void deleteAccount()}><Trash2 size={17} /> {deleting ? 'Deleting account…' : auth.isDemo ? 'Reset everything' : 'Permanently delete my account'}</button><p className="tiny muted" style={{ textAlign: 'center' }}>No dark patterns. Just one deliberate last step.</p></div>
       </Sheet>
       <Sheet open={importOpen} onClose={() => setImportOpen(false)} title="Review private import" description="Only supported personal tables will be written, and every row is forced to your signed-in user ID.">
         <div className="form-grid">
