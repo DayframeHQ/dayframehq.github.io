@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Check, Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, LogIn, Mail, Sparkles } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, LogIn, Mail } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -87,15 +87,17 @@ export function AuthPage() {
       <div className="auth-wrap">
         <section className="auth-story">
           <div style={{ position: 'relative', zIndex: 1 }}><Brand /></div>
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <p className="eyebrow" style={{ color: '#F5F0E7' }}>Your day, in one clear frame</p>
-            <h1>Build a life you can actually see.</h1>
-            <p>Training, nutrition, recovery and the things that matter beyond them — thoughtfully connected, never cluttered.</p>
-            <div className="row" style={{ flexWrap: 'wrap', marginTop: 24 }}>
-              <span className="badge" style={{ background: 'rgba(245,240,231,.1)', color: '#F5F0E7' }}><Check size={12} /> Private by design</span>
-              <span className="badge" style={{ background: 'rgba(245,240,231,.1)', color: '#F5F0E7' }}><Sparkles size={12} /> Calm, useful insights</span>
-            </div>
+          <div className="auth-manifesto" style={{ position: 'relative', zIndex: 1 }}>
+            <p className="eyebrow">Start here</p>
+            <h1 aria-label="Build the body. Train the mind. Frame your life.">
+              <span>Build the body.</span>
+              <span>Train the mind.</span>
+              <strong>Frame your life.</strong>
+            </h1>
+            <span className="editorial-rule" aria-hidden="true" />
+            <p className="auth-deck">One private system for training, study, nutrition, recovery and the life around them.</p>
           </div>
+          <div className="auth-footnote" style={{ position: 'relative', zIndex: 1 }}><span>YOUR DAY, IN ONE CLEAR FRAME</span><span>PRIVATE BY DESIGN</span></div>
         </section>
 
         <section className="card auth-panel">

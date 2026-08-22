@@ -13,7 +13,7 @@ export function SettingsPage() {
   const auth = useAuth()
   const data = useData()
   const nutritionPreferences = useNutritionPreferences()
-  const [dark, setDark] = useState(() => localStorage.getItem('dayframe_theme') === 'dark')
+  const [dark, setDark] = useState(() => localStorage.getItem('dayframe_theme') !== 'light')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [pendingImport, setPendingImport] = useState<Record<string, unknown> | null>(null)
