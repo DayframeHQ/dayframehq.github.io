@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, LogIn, Mail } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, Mail } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -109,6 +109,12 @@ export function AuthPage() {
 
           <div className="auth-actions">
             {auth.isConfigured ? <>
+              <button className="btn btn-primary auth-google" type="button" onClick={googleLogin} disabled={providerLoading}>
+                {providerLoading ? <LoaderCircle className="animate-spin" size={19} /> : <span className="google-mark" aria-hidden="true">G</span>} Continue with Google
+              </button>
+
+              <div className="auth-email-divider"><span>or use email</span></div>
+
               <div className="auth-mode-switch" role="tablist" aria-label="Account access">
                 <button type="button" role="tab" aria-selected={mode === 'sign-in'} className={mode === 'sign-in' ? 'active' : ''} onClick={() => changeMode('sign-in')}>Sign in</button>
                 <button type="button" role="tab" aria-selected={mode === 'sign-up'} className={mode === 'sign-up' ? 'active' : ''} onClick={() => changeMode('sign-up')}>Create account</button>
@@ -149,11 +155,6 @@ export function AuthPage() {
               {mode === 'sign-in' && <button className="link-button auth-magic-link" type="button" onClick={emailMagicLink} disabled={magicLinkLoading}>
                 {magicLinkLoading ? <LoaderCircle className="animate-spin" size={16} /> : <Mail size={16} />} Email me a sign-in link
               </button>}
-
-              <div className="row"><span className="divider" style={{ flex: 1 }} /><span className="muted tiny">OR</span><span className="divider" style={{ flex: 1 }} /></div>
-              <button className="btn btn-secondary" type="button" onClick={googleLogin} disabled={providerLoading}>
-                {providerLoading ? <LoaderCircle className="animate-spin" size={18} /> : <LogIn size={18} />} Continue with Google
-              </button>
             </> : (
               <div className="card card-quiet card-pad" style={{ background: 'var(--brand-soft)' }}>
                 <strong>Supabase setup needed</strong>
