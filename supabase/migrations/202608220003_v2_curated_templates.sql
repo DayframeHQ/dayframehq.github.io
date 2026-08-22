@@ -1,5 +1,7 @@
 -- Dayframe-curated V2 catalog. Public content only; no owner data.
 
+begin;
+
 insert into public.templates (id,slug,domain,name,short_description,goal,difficulty,status,featured) values
 ('10000000-0000-4000-8000-000000000001','full-body-minimum-effective','train','Full Body — Minimum Effective','One focused full-body session for constrained weeks.','General fitness','New','published',false),
 ('10000000-0000-4000-8000-000000000002','full-body-a-b','train','Full Body A/B','Two meaningfully spaced full-body sessions.','Build muscle','New','published',false),
@@ -56,26 +58,85 @@ update public.template_versions v set content = jsonb_set(v.content,'{phases,0,b
 )) where v.id='20000000-0000-4000-8000-000000000004';
 
 -- The other availability plans retain their catalog-prescribed structure. Each is explicitly copyable.
-update public.template_versions set content = jsonb_build_object('content_status','complete','phases',jsonb_build_array(jsonb_build_object(
-  'name','Full Body','start_week',1,'end_week',12,'blocks',jsonb_build_array(jsonb_build_object('name','Weekly schedule','type','cycle','week',1,'sessions',jsonb_build_array(
-    jsonb_build_object('title','Full Body / Minimum Effective','day_offset',0,'minutes',75,'items',jsonb_build_array(
-      jsonb_build_object('type','exercise','title','Leg Press or Squat Variation','metadata',jsonb_build_object('sets',3,'rep_min',6,'rep_max',10)),
-      jsonb_build_object('type','exercise','title','Incline DB or Machine Press','metadata',jsonb_build_object('sets',3,'rep_min',6,'rep_max',10)),
-      jsonb_build_object('type','exercise','title','Lat Pulldown or Pull-Up','metadata',jsonb_build_object('sets',3,'rep_min',6,'rep_max',10)),
-      jsonb_build_object('type','exercise','title','Leg Curl','metadata',jsonb_build_object('sets',3,'rep_min',8,'rep_max',12)),
-      jsonb_build_object('type','exercise','title','Chest-Supported Row','metadata',jsonb_build_object('sets',3,'rep_min',8,'rep_max',12)),
-      jsonb_build_object('type','exercise','title','Lateral Raise','metadata',jsonb_build_object('sets',2,'rep_min',12,'rep_max',20)),
-      jsonb_build_object('type','exercise','title','Biceps Curl','metadata',jsonb_build_object('sets',2,'rep_min',8,'rep_max',15)),
-      jsonb_build_object('type','exercise','title','Triceps Extension','metadata',jsonb_build_object('sets',2,'rep_min',8,'rep_max',15)),
-      jsonb_build_object('type','exercise','title','Cable Crunch or Pallof Press','metadata',jsonb_build_object('sets',2,'rep_min',10,'rep_max',15))
-    )))))) where id='20000000-0000-4000-8000-000000000001';
+update public.template_versions set content = $json${
+  "content_status":"complete",
+  "phases":[{
+    "name":"Full Body",
+    "start_week":1,
+    "end_week":12,
+    "blocks":[{
+      "name":"Weekly schedule",
+      "type":"cycle",
+      "week":1,
+      "sessions":[{
+        "title":"Full Body / Minimum Effective",
+        "day_offset":0,
+        "minutes":75,
+        "items":[
+          {"type":"exercise","title":"Leg Press or Squat Variation","metadata":{"sets":3,"rep_min":6,"rep_max":10,"target_rir":2}},
+          {"type":"exercise","title":"Incline DB or Machine Press","metadata":{"sets":3,"rep_min":6,"rep_max":10,"target_rir":2}},
+          {"type":"exercise","title":"Lat Pulldown or Pull-Up","metadata":{"sets":3,"rep_min":6,"rep_max":10,"target_rir":2}},
+          {"type":"exercise","title":"Leg Curl","metadata":{"sets":3,"rep_min":8,"rep_max":12,"target_rir":2}},
+          {"type":"exercise","title":"Chest-Supported Row","metadata":{"sets":3,"rep_min":8,"rep_max":12,"target_rir":2}},
+          {"type":"exercise","title":"Lateral Raise","metadata":{"sets":2,"rep_min":12,"rep_max":20,"target_rir":2}},
+          {"type":"exercise","title":"Biceps Curl","metadata":{"sets":2,"rep_min":8,"rep_max":15,"target_rir":2}},
+          {"type":"exercise","title":"Triceps Extension","metadata":{"sets":2,"rep_min":8,"rep_max":15,"target_rir":2}},
+          {"type":"exercise","title":"Cable Crunch or Pallof Press","metadata":{"sets":2,"rep_min":10,"rep_max":15,"target_rir":2}}
+        ]
+      }]
+    }]
+  }]
+}$json$::jsonb where id='20000000-0000-4000-8000-000000000001';
 
 create function pg_temp.dayframe_workout_content(p_schedule jsonb) returns jsonb language sql immutable as $$
-  select jsonb_build_object('content_status','complete','principles',jsonb_build_object('progression','Double progression with user-confirmed load changes','target_rir','Begin around 2–3 RIR; established working sets typically use 1–2 RIR.'),'phases',jsonb_build_array(jsonb_build_object('name','Training cycle','start_week',1,'end_week',12,'blocks',jsonb_build_array(jsonb_build_object('name','Weekly schedule','type','cycle','week',1,'sessions',(
-    select jsonb_agg(jsonb_build_object('title',s->>'title','day_offset',(s->>'day')::int,'minutes',coalesce((s->>'minutes')::int,65),'items',(
-      select jsonb_agg(jsonb_build_object('type',coalesce(i->>4,'exercise'),'title',i->>0,'metadata',jsonb_build_object('sets',coalesce((i->>1)::int,1),'rep_min',coalesce((i->>2)::int,1),'rep_max',coalesce((i->>3)::int,1),'target_rir',2))) from jsonb_array_elements(s->'items') i
-    )) order by (s->>'day')::int) from jsonb_array_elements(p_schedule) s
-  ))))))
+  with normalized_sessions as (
+    select jsonb_agg(
+      jsonb_build_object(
+        'title', s->>'title',
+        'day_offset', (s->>'day')::int,
+        'minutes', coalesce((s->>'minutes')::int, 65),
+        'items', (
+          select jsonb_agg(
+            jsonb_build_object(
+              'type', coalesce(i->>4, 'exercise'),
+              'title', i->>0,
+              'metadata', jsonb_build_object(
+                'sets', coalesce((i->>1)::int, 1),
+                'rep_min', coalesce((i->>2)::int, 1),
+                'rep_max', coalesce((i->>3)::int, 1),
+                'target_rir', 2
+              )
+            )
+          )
+          from jsonb_array_elements(s->'items') i
+        )
+      ) order by (s->>'day')::int
+    ) as sessions
+    from jsonb_array_elements(p_schedule) s
+  )
+  select jsonb_build_object(
+    'content_status', 'complete',
+    'principles', jsonb_build_object(
+      'progression', 'Double progression with user-confirmed load changes',
+      'target_rir', 'Begin around 2–3 RIR; established working sets typically use 1–2 RIR.'
+    ),
+    'phases', jsonb_build_array(
+      jsonb_build_object(
+        'name', 'Training cycle',
+        'start_week', 1,
+        'end_week', 12,
+        'blocks', jsonb_build_array(
+          jsonb_build_object(
+            'name', 'Weekly schedule',
+            'type', 'cycle',
+            'week', 1,
+            'sessions', normalized_sessions.sessions
+          )
+        )
+      )
+    )
+  )
+  from normalized_sessions
 $$;
 
 update public.template_versions set content=pg_temp.dayframe_workout_content($j$[
@@ -198,20 +259,32 @@ begin
   update public.template_versions set content = content || jsonb_build_object('phases',jsonb_build_array(jsonb_build_object('name','8-Week Interview Sprint','start_week',1,'end_week',8,'blocks',blocks)),'core_problem_target',128) where id='20000000-0000-4000-8000-000000000106';
 end $$;
 
-insert into public.template_sources(template_version_id,title,author_or_org,url,source_type,description,position) values
-('20000000-0000-4000-8000-000000000102','The Missing Semester of Your CS Education','MIT','https://missing.csail.mit.edu/','course','Developer tooling reference.',1),
-('20000000-0000-4000-8000-000000000102','CS 61C','UC Berkeley','https://cs61c.org/','course','Computer architecture reference.',2),
-('20000000-0000-4000-8000-000000000102','CS 144: Introduction to Computer Networking','Stanford University','https://cs144.github.io/','course','Networking reference.',3),
-('20000000-0000-4000-8000-000000000102','Database Systems','Carnegie Mellon University','https://15445.courses.cs.cmu.edu/','course','Database systems reference.',4),
-('20000000-0000-4000-8000-000000000102','OWASP Top Ten','OWASP Foundation','https://owasp.org/www-project-top-ten/','documentation','Application security reference.',5),
-('20000000-0000-4000-8000-000000000102','Site Reliability Engineering','Google','https://sre.google/sre-book/table-of-contents/','book','Public reliability engineering reference.',6),
-('20000000-0000-4000-8000-000000000106','LeetCode Problems','LeetCode','https://leetcode.com/problemset/','problem_set','Problem links and manual Dayframe attempts only; no scraping or automatic sync.',1),
-('20000000-0000-4000-8000-000000000106','System Design Primer','donnemartin','https://github.com/donnemartin/system-design-primer','repository','Public system-design reference.',2)
-on conflict do nothing;
+insert into public.template_sources(id,template_version_id,title,author_or_org,url,source_type,description,position) values
+('30000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000102','The Missing Semester of Your CS Education','MIT','https://missing.csail.mit.edu/','course','Developer tooling reference.',1),
+('30000000-0000-4000-8000-000000000002','20000000-0000-4000-8000-000000000102','CS 61C','UC Berkeley','https://cs61c.org/','course','Computer architecture reference.',2),
+('30000000-0000-4000-8000-000000000003','20000000-0000-4000-8000-000000000102','CS 144: Introduction to Computer Networking','Stanford University','https://cs144.github.io/','course','Networking reference.',3),
+('30000000-0000-4000-8000-000000000004','20000000-0000-4000-8000-000000000102','Database Systems','Carnegie Mellon University','https://15445.courses.cs.cmu.edu/','course','Database systems reference.',4),
+('30000000-0000-4000-8000-000000000005','20000000-0000-4000-8000-000000000102','OWASP Top Ten','OWASP Foundation','https://owasp.org/www-project-top-ten/','documentation','Application security reference.',5),
+('30000000-0000-4000-8000-000000000006','20000000-0000-4000-8000-000000000102','Site Reliability Engineering','Google','https://sre.google/sre-book/table-of-contents/','book','Public reliability engineering reference.',6),
+('30000000-0000-4000-8000-000000000007','20000000-0000-4000-8000-000000000106','LeetCode Problems','LeetCode','https://leetcode.com/problemset/','problem_set','Problem links and manual Dayframe attempts only; no scraping or automatic sync.',1),
+('30000000-0000-4000-8000-000000000008','20000000-0000-4000-8000-000000000106','System Design Primer','donnemartin','https://github.com/donnemartin/system-design-primer','repository','Public system-design reference.',2)
+on conflict (id) do nothing;
 
-insert into public.study_topics(name,slug,area,is_system) values
-('Arrays','arrays','dsa',true),('Hash Maps','hash-maps','dsa',true),('Two Pointers','two-pointers','dsa',true),('Sliding Window','sliding-window','dsa',true),
-('Binary Search','binary-search','dsa',true),('Trees','trees','dsa',true),('Graphs','graphs','dsa',true),('Dynamic Programming','dynamic-programming','dsa',true),
-('Operating Systems','operating-systems','operating_systems',true),('Networking','networking','networking',true),('Databases','databases','databases',true),
-('System Design','system-design','system_design',true),('Security','security','security',true),('Reliability','reliability','reliability',true)
-on conflict (user_id,slug) do nothing;
+insert into public.study_topics(id,name,slug,area,is_system) values
+('40000000-0000-4000-8000-000000000001','Arrays','arrays','dsa',true),
+('40000000-0000-4000-8000-000000000002','Hash Maps','hash-maps','dsa',true),
+('40000000-0000-4000-8000-000000000003','Two Pointers','two-pointers','dsa',true),
+('40000000-0000-4000-8000-000000000004','Sliding Window','sliding-window','dsa',true),
+('40000000-0000-4000-8000-000000000005','Binary Search','binary-search','dsa',true),
+('40000000-0000-4000-8000-000000000006','Trees','trees','dsa',true),
+('40000000-0000-4000-8000-000000000007','Graphs','graphs','dsa',true),
+('40000000-0000-4000-8000-000000000008','Dynamic Programming','dynamic-programming','dsa',true),
+('40000000-0000-4000-8000-000000000009','Operating Systems','operating-systems','operating_systems',true),
+('40000000-0000-4000-8000-000000000010','Networking','networking','networking',true),
+('40000000-0000-4000-8000-000000000011','Databases','databases','databases',true),
+('40000000-0000-4000-8000-000000000012','System Design','system-design','system_design',true),
+('40000000-0000-4000-8000-000000000013','Security','security','security',true),
+('40000000-0000-4000-8000-000000000014','Reliability','reliability','reliability',true)
+on conflict (id) do nothing;
+
+commit;
