@@ -9,7 +9,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['brand/dayframe-gada.svg', 'brand/dayframe-arjuna.svg'],
+      includeAssets: ['brand/dayframe-gada.svg', 'brand/dayframe-athlete.svg'],
       manifest: {
         name: 'Dayframe',
         short_name: 'Dayframe',

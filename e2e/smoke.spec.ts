@@ -32,3 +32,10 @@ test('food totals and life goals are reachable', async ({ page }) => {
   await page.getByRole('link', { name: /life/i }).first().click()
   await expect(page.getByRole('heading', { name: /active goals/i })).toBeVisible()
 })
+
+test('demo profile offers a clear route to real sign in', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: /explore the interactive demo/i }).click()
+  await page.goto('/#/settings')
+  await expect(page.getByRole('button', { name: /create account or sign in/i })).toBeVisible()
+})

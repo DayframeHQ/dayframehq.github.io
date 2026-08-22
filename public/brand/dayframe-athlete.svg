@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Dayframe winged athlete alternate mark</title>
+  <rect width="64" height="64" rx="14" fill="#181513"/>
+  <g fill="#F5F0E7">
+    <circle cx="43" cy="23" r="4"/>
+    <path d="M11 28L46 8 30 25 12 33l-1-5z"/>
+    <path d="M12 35l22-9-7 7-14 6-1-4z"/>
+    <path d="M14 41l14-7-5 7-8 4-1-4z"/>
+    <path d="M25 35c4-7 9-10 14-8l6 4 11-3-11 8-7-2-5 8-15 15 8-19-1-3z"/>
+  </g>
+</svg>

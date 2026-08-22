@@ -11,17 +11,39 @@ const steps = ['Profile', 'Targets', 'Schedule', 'Import']
 export function OnboardingPage({ onComplete }: OnboardingPageProps) {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState({ name: '', units: 'metric', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, height: '', weight: '', calories: '', protein: '', trainingGoal: 'Build strength and consistency', sessions: '3' })
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const { user } = useAuth()
 
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }))
   const finish = async (event: FormEvent) => {
     event.preventDefault()
-    if (supabase && user) {
-      await supabase.from('profiles').upsert({ id: user.id, user_id: user.id, display_name: form.name, timezone: form.timezone, preferred_units: form.units, onboarding_completed: true })
-      if (form.calories || form.protein) await supabase.from('user_preferences').upsert({ user_id: user.id, calorie_target: Number(form.calories) || null, protein_target_g: Number(form.protein) || null })
+    if (!supabase || !user) return
+    setSaving(true)
+    setSaveError('')
+    try {
+      const { error: profileError } = await supabase.from('profiles').upsert({ id: user.id, user_id: user.id, display_name: form.name, timezone: form.timezone, preferred_units: form.units })
+      if (profileError) throw profileError
+
+      if (form.calories || form.protein) {
+        const { error: preferencesError } = await supabase.from('user_preferences').upsert({ user_id: user.id, calorie_target: Number(form.calories) || null, protein_target_g: Number(form.protein) || null })
+        if (preferencesError) throw preferencesError
+      }
+      if (form.weight) {
+        const { error: measurementError } = await supabase.from('body_measurements').insert({ user_id: user.id, measured_at: new Date().toISOString(), weight_kg: Number(form.weight) })
+        if (measurementError) throw measurementError
+      }
+
+      const { error: metadataError } = await supabase.auth.updateUser({ data: { height: form.height || null, training_goal: form.trainingGoal, sessions_per_week: Number(form.sessions) } })
+      if (metadataError) throw metadataError
+      const { error: completionError } = await supabase.from('profiles').update({ onboarding_completed: true }).eq('user_id', user.id)
+      if (completionError) throw completionError
+      onComplete()
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Your setup could not be saved. Please try again.')
+    } finally {
+      setSaving(false)
     }
-    localStorage.setItem(`dayframe_onboarded_${user?.id ?? 'demo'}`, 'true')
-    onComplete()
   }
 
   return (
@@ -53,10 +75,11 @@ export function OnboardingPage({ onComplete }: OnboardingPageProps) {
             {step === 3 && <>
               <div className="empty-state card card-quiet"><Upload size={28} style={{ margin: '0 auto 10px' }} /><strong>Import existing data</strong><p className="small">Optional JSON import is available in Settings after setup. Private files remain on your device until you confirm the import.</p></div>
               <label className="row small"><input type="checkbox" required /> I understand Dayframe does not provide medical diagnosis.</label>
+              {saveError && <p className="auth-message small" role="alert">Could not save your setup: {saveError}</p>}
             </>}
             <div className="row-between" style={{ marginTop: 12 }}>
               <button className="btn btn-ghost" type="button" disabled={step === 0} onClick={() => setStep((value) => value - 1)}><ArrowLeft size={17} /> Back</button>
-              <button className="btn btn-primary" type="submit">{step === steps.length - 1 ? <><Check size={17} /> Finish setup</> : <>Continue <ArrowRight size={17} /></>}</button>
+              <button className="btn btn-primary" type="submit" disabled={saving}>{step === steps.length - 1 ? <><Check size={17} /> {saving ? 'Saving…' : 'Finish setup'}</> : <>Continue <ArrowRight size={17} /></>}</button>
             </div>
           </form>
         </section>

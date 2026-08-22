@@ -70,9 +70,11 @@ You said the Supabase project already exists, so connect this repo and apply the
 
 ```bash
 npx supabase login
-npx supabase link --project-ref YOUR_PROJECT_REF
+npx supabase link --project-ref ubbxllmbzsmebqlpapcs
 npx supabase db push
 ```
+
+Creating the Supabase project is not enough: `db push` must complete before authenticated Dayframe data can persist. If the app shows **Connect the database**, the project exists but these tables have not been applied yet.
 
 The migration at [`supabase/migrations/202608220001_initial_schema.sql`](supabase/migrations/202608220001_initial_schema.sql) creates the normalized schema, indexes, auth-profile trigger, reusable training template, public exercise reference library and RLS policies.
 
@@ -115,6 +117,8 @@ The pgTAP checks in [`supabase/tests/rls.sql`](supabase/tests/rls.sql) verify th
 
 The same Email provider powers password login and magic links. Magic links are restricted to existing accounts; creating a new account requires setting a password.
 
+Dayframe uses the verified email address as the account identifier; it does not use a separate public username. The password is handled by Supabase Auth and is never stored in Dayframe tables.
+
 For production, configure a custom SMTP provider under Authentication → Email if reliable delivery and a branded sender are important. Supabase's default SMTP is suitable only for initial testing and is rate-limited.
 
 ### Google OAuth
@@ -125,7 +129,7 @@ For production, configure a custom SMTP provider under Authentication → Email 
 4. Add this exact Google authorized redirect URI:
 
    ```text
-   https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback
+      https://ubbxllmbzsmebqlpapcs.supabase.co/auth/v1/callback
    ```
 
 5. In Supabase Dashboard → Authentication → Providers → Google, enable Google and paste the Google Client ID and Client Secret.
@@ -215,7 +219,7 @@ https://dayframehq.github.io
 
 ## Current limitations
 
-- The primary gada-inspired strength/progress mark and alternate Arjuna focus/goal mark are stored as two-colour SVGs in `public/brand/`.
+- The primary gada/progress mark and alternate winged-athlete mark are stored as two-colour SVGs in `public/brand/`.
 - Browser notifications cannot guarantee background delivery. Reliable push requires a server-side scheduler plus Web Push/FCM.
 - Wearable, Apple Health, barcode, restaurant and nutrition-provider integrations are adapter placeholders, not V1 claims.
 - Offline writes use a simple ordered queue. Concurrent edits across several offline devices are not merged with CRDT semantics.
@@ -232,6 +236,6 @@ https://dayframehq.github.io
 ## Brand assets
 
 - `public/brand/dayframe-gada.svg` — primary logo and app icon
-- `public/brand/dayframe-arjuna.svg` — approved alternate logo
+- `public/brand/dayframe-athlete.svg` — approved alternate winged-athlete logo
 
 Both assets use only Obsidian `#181513` and Porcelain `#F5F0E7`.

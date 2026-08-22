@@ -16,6 +16,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
     })
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession)
+      if (nextSession) {
+        sessionStorage.removeItem('dayframe_demo')
+        setIsDemo(false)
+      }
       setLoading(false)
     })
     return () => data.subscription.unsubscribe()

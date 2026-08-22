@@ -108,7 +108,7 @@ export function SettingsPage() {
     <div className="page">
       <header className="page-header"><div className="row" style={{ alignItems: 'flex-start' }}><button className="btn btn-secondary btn-icon" type="button" onClick={() => navigate(-1)} aria-label="Go back"><ArrowLeft size={20} /></button><div><p className="eyebrow">Account</p><h1>Profile & settings</h1><p className="muted">Your preferences, privacy and data.</p></div></div></header>
 
-      {auth.isDemo && <div className="insight-callout"><strong className="small">You’re exploring demo mode.</strong><p className="muted small" style={{ margin: '6px 0 0' }}>Changes are saved only in this browser. Connect Supabase to create secure synced accounts.</p></div>}
+      {auth.isDemo && <div className="insight-callout"><strong className="small">You’re exploring demo mode.</strong><p className="muted small" style={{ margin: '6px 0 12px' }}>Demo changes stay only in this browser and never sync to your private account.</p><button className="btn btn-primary btn-small" type="button" onClick={() => void auth.signOut()}>Create account or sign in</button></div>}
       {message && <div className="toast" role="status">{message}</div>}
 
       <div className="settings-grid section">
@@ -120,7 +120,7 @@ export function SettingsPage() {
 
         <section className="card card-pad"><div className="row"><span className="icon-bubble"><Shield size={19} /></span><strong>Privacy & support</strong></div><button className="settings-row" type="button"><span>Privacy model</span><ChevronRight size={17} className="muted" /></button><button className="settings-row" type="button"><span className="row"><HelpCircle size={17} /> Help & current limitations</span><ChevronRight size={17} className="muted" /></button></section>
 
-        <section className="card card-pad"><button className="settings-row" type="button" onClick={() => void auth.signOut()}><span className="row"><LogOut size={17} /> Sign out</span><ChevronRight size={17} className="muted" /></button><button className="settings-row" style={{ color: 'var(--danger)' }} type="button" onClick={() => setDeleteOpen(true)}><span className="row"><Trash2 size={17} /> {auth.isDemo ? 'Reset demo data' : 'Delete account and data'}</span><ChevronRight size={17} /></button></section>
+        <section className="card card-pad"><button className="settings-row" type="button" onClick={() => void auth.signOut()}><span className="row"><LogOut size={17} /> {auth.isDemo ? 'Leave demo and sign in' : 'Sign out'}</span><ChevronRight size={17} className="muted" /></button><button className="settings-row" style={{ color: 'var(--danger)' }} type="button" onClick={() => setDeleteOpen(true)}><span className="row"><Trash2 size={17} /> {auth.isDemo ? 'Reset demo data' : 'Delete account and data'}</span><ChevronRight size={17} /></button></section>
       </div>
 
       <Sheet open={deleteOpen} onClose={() => setDeleteOpen(false)} title={auth.isDemo ? 'Reset demo data?' : 'Delete your account?'} description={auth.isDemo ? 'This returns the interactive preview to its starting state.' : 'This permanently removes your account and every user-owned row. This cannot be undone.'}>
