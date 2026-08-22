@@ -1,0 +1,5 @@
+# Every change requires review from a Dayframe repository owner.
+* @gopalmani @altdeep1-ops
+
+# Protect the ownership and automation policy itself.
+/.github/ @gopalmani @altdeep1-ops
