@@ -96,6 +96,7 @@ export function AuthPage() {
             </h1>
             <span className="editorial-rule" aria-hidden="true" />
             <p className="auth-deck">One private system for training, study, nutrition, recovery and the life around them.</p>
+            <p className="tiny muted" style={{ maxWidth: 520, lineHeight: 1.6 }}>NO APP-STORE DOWNLOAD · OPEN IN ANY MODERN BROWSER · ADD TO YOUR HOME SCREEN IF YOU WANT</p>
           </div>
           <div className="auth-footnote" style={{ position: 'relative', zIndex: 1 }}><span>YOUR DAY, IN ONE CLEAR FRAME</span><span>PRIVATE BY DESIGN</span></div>
         </section>
