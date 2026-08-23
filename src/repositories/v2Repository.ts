@@ -66,13 +66,42 @@ export async function copyTemplate(identity: RepoIdentity, template: PlanTemplat
       const sessionId = crypto.randomUUID()
       sessions.push({ id: sessionId, plan_id: planId, domain: template.domain, title: source.title, description: source.description, scheduled_date: dateKey(scheduled), estimated_minutes: source.minutes, status: 'planned', planned_items: source.items.map((item, index) => ({ id: crypto.randomUUID(), planned_session_id: sessionId, domain: template.domain, item_type: item.type, title: item.title, position: index, estimated_minutes: item.minutes, required: true, status: 'planned', study_task_id: template.domain === 'study' ? crypto.randomUUID() : null, metadata: item.metadata ?? {} })) })
     }
-    writeDemo({ ...state, plans: [...state.plans.filter((item) => item.domain !== template.domain || item.status !== 'active'), plan], sessions: [...state.sessions, ...sessions] })
+    writeDemo({ ...state, plans: [...state.plans.map((item) => item.domain === template.domain && ['active','paused'].includes(item.status) ? { ...item, status: 'archived' as const } : item), plan], sessions: [...state.sessions, ...sessions] })
     return planId
   }
   const client = clientFor(identity)!
+  const { data: previousPlans, error: previousPlanError } = await client.from('plans').select('id').eq('domain', template.domain).in('status', ['active','paused'])
+  if (previousPlanError) throw new Error(previousPlanError.message)
   const { data, error } = await client.rpc('copy_template_version', { p_template_version_id: template.version.id, p_start_date: startDate })
   if (error) throw new Error(error.message)
-  return data as string
+  const planId = data as string
+  const { error: archiveError } = await client.from('plans').update({ status: 'archived', archived_at: new Date().toISOString() }).eq('domain', template.domain).in('status', ['active','paused']).neq('id', planId)
+  if (archiveError) throw new Error(`The template was copied, but the previous plan could not be archived: ${archiveError.message}`)
+  const previousIds = (previousPlans ?? []).map((item) => item.id)
+  if (template.domain === 'train' && previousIds.length) {
+    const { error: programError } = await client.from('workout_programs').update({ is_active: false }).in('plan_id', previousIds)
+    if (programError) throw new Error(`The template was copied, but the previous workout program could not be archived: ${programError.message}`)
+  }
+  return planId
+}
+
+export async function resetDomainPlans(identity: RepoIdentity, domain: Domain) {
+  if (identity.isDemo) {
+    const state = readDemo()
+    writeDemo({ ...state, plans: state.plans.map((item) => item.domain === domain && ['active','paused'].includes(item.status) ? { ...item, status: 'archived' as const } : item) })
+    return
+  }
+  const client = clientFor(identity)!
+  const { data: plans, error: planError } = await client.from('plans').select('id').eq('domain', domain).in('status', ['active','paused'])
+  if (planError) throw new Error(planError.message)
+  const ids = (plans ?? []).map((item) => item.id)
+  if (!ids.length) return
+  const { error } = await client.from('plans').update({ status: 'archived', archived_at: new Date().toISOString() }).in('id', ids)
+  if (error) throw new Error(error.message)
+  if (domain === 'train') {
+    const { error: programError } = await client.from('workout_programs').update({ is_active: false }).in('plan_id', ids)
+    if (programError) throw new Error(programError.message)
+  }
 }
 
 export async function listPlans(identity: RepoIdentity, domain?: Domain): Promise<Plan[]> {
