@@ -34,7 +34,9 @@ export function DataProvider({ children }: PropsWithChildren) {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [data, setData] = useState<StoredData>(() => auth.isDemo ? loadDemo() : cleanDefaults)
   const [syncPending, setSyncPending] = useState(() => !navigator.onLine)
+  const [activeWorkoutSessionId, setActiveWorkoutSessionId] = useState<string | null>(null)
   const dateKey = format(selectedDate, 'yyyy-MM-dd')
+  const workoutDraftKey = useCallback((plannedSessionId: string) => `dayframe_workout_draft_${auth.user?.id ?? 'demo'}_${plannedSessionId}`, [auth.user?.id])
 
   const persist = useCallback(async (table: string, payload: Record<string, unknown>, operation: 'insert' | 'update' | 'delete' = 'insert') => {
     if (auth.isDemo || !auth.user || !supabase) return
@@ -60,6 +62,11 @@ export function DataProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (auth.isDemo) localStorage.setItem('dayframe_demo_data', JSON.stringify(data))
   }, [auth.isDemo, data])
+
+  useEffect(() => {
+    if (!activeWorkoutSessionId || !data.workout.length) return
+    localStorage.setItem(workoutDraftKey(activeWorkoutSessionId), JSON.stringify(data.workout))
+  }, [activeWorkoutSessionId, data.workout, workoutDraftKey])
 
   useEffect(() => {
     if (auth.isDemo || !auth.user || !supabase) return
@@ -154,13 +161,22 @@ export function DataProvider({ children }: PropsWithChildren) {
       setData((current) => ({ ...current, trips: [...current.trips, item] }))
       void persist('travel_plans', { id: item.id, destination, country, status: 'Wishlist' })
     },
-    updateSet: (exerciseId: string, setId: string, field: 'weight' | 'reps' | 'rir' | 'completed', next: number | boolean) => setData((current) => ({ ...current, workout: current.workout.map((exercise) => exercise.id !== exerciseId ? exercise : { ...exercise, sets: exercise.sets.map((item) => item.id === setId ? { ...item, [field]: next } : item) }) })),
-    loadWorkoutFromPlan: async (items: Array<{ id: string; title: string; metadata: Record<string, unknown> }>) => {
+    updateSet: (exerciseId: string, setId: string, field: 'weight' | 'reps' | 'rir' | 'completed' | 'notes', next: number | boolean | string) => setData((current) => ({ ...current, workout: current.workout.map((exercise) => exercise.id !== exerciseId ? exercise : { ...exercise, sets: exercise.sets.map((item) => item.id === setId ? { ...item, [field]: next } : item) }) })),
+    loadWorkoutFromPlan: async (items: Array<{ id: string; title: string; metadata: Record<string, unknown> }>, plannedSessionId?: string) => {
       const mapped: WorkoutExercise[] = items.map((item) => {
         const sets = Number(item.metadata.sets ?? 3); const repMin = Number(item.metadata.rep_min ?? 8); const repMax = Number(item.metadata.rep_max ?? 12)
-        return { id: item.id, name: item.title, repRange: `${repMin}–${repMax} reps`, previous: 'No prior performance', sets: Array.from({ length: sets }, () => ({ id: crypto.randomUUID(), weight: 0, reps: 0, rir: Number(item.metadata.target_rir ?? 2), completed: false })) }
+        return { id: item.id, name: item.title, repRange: `${repMin}–${repMax} reps`, previous: 'No prior performance', sets: Array.from({ length: sets }, () => ({ id: crypto.randomUUID(), weight: 0, reps: repMin, rir: Number(item.metadata.target_rir ?? 2), completed: false, notes: '' })) }
       })
-      setData((current) => ({ ...current, workout: mapped }))
+      let initial = mapped
+      if (plannedSessionId) {
+        try {
+          const draft = JSON.parse(localStorage.getItem(workoutDraftKey(plannedSessionId)) ?? 'null') as WorkoutExercise[] | null
+          if (Array.isArray(draft) && draft.length) initial = draft
+        } catch { /* Ignore a malformed local draft and use the persisted prescription. */ }
+      }
+      setData((current) => ({ ...current, workout: initial }))
+      setActiveWorkoutSessionId(plannedSessionId ?? null)
+      if (initial !== mapped) return
       if (!auth.isDemo && supabase && auth.user) {
         const client=supabase
         const enriched=await Promise.all(mapped.map(async(exercise)=>{
@@ -168,7 +184,7 @@ export function DataProvider({ children }: PropsWithChildren) {
           const {data:reference}=await client.from('exercises').select('id').ilike('name',searchName).limit(1).maybeSingle()
           if(!reference)return exercise
           const {data:last}=await client.from('set_logs').select('weight,reps,rir,performed_at,exercise_logs!inner(exercise_id)').eq('exercise_logs.exercise_id',reference.id).eq('completed',true).order('performed_at',{ascending:false}).limit(1).maybeSingle()
-          return last?{...exercise,previous:`${Number(last.weight)} kg × ${last.reps} · ${last.rir ?? '—'} RIR`}:exercise
+          return last?{...exercise,previous:`${Number(last.weight)} kg × ${last.reps} · ${last.rir ?? '—'} RIR`,sets:exercise.sets.map((set)=>({...set,weight:Number(last.weight)}))}:exercise
         }))
         setData((current)=>({...current,workout:enriched}))
       }
@@ -178,22 +194,29 @@ export function DataProvider({ children }: PropsWithChildren) {
       void persist('workout_programs', { name: '4-Day Recomp — Upper/Lower', description: 'Copied from the public Dayframe template', is_active: true, start_date: dateKey })
     },
     saveWorkout: async (plannedSessionId?: string) => {
-      if (auth.isDemo || !auth.user || !supabase) return
+      const clearDraft = () => { if (plannedSessionId) localStorage.removeItem(workoutDraftKey(plannedSessionId)); setActiveWorkoutSessionId(null) }
+      if (auth.isDemo || !auth.user || !supabase) { clearDraft(); return }
       const { data: session, error } = await supabase.from('workout_sessions').insert({ user_id: auth.user.id, planned_session_id: plannedSessionId ?? null, session_date: dateKey, started_at: new Date().toISOString(), completed_at: new Date().toISOString(), status: 'completed' }).select('id').single()
       if (error || !session) throw error ?? new Error('Could not create workout session')
-      for (const [index, exercise] of data.workout.entries()) {
-        const searchName=exercise.name.split(/\s+\/\s+|\s+or\s+/i)[0]
-        let { data: exerciseRow } = await supabase.from('exercises').select('id').ilike('name', searchName).limit(1).maybeSingle()
-        if (!exerciseRow) { const created=await supabase.from('exercises').insert({user_id:auth.user.id,name:exercise.name,category:'Custom',is_system:false}).select('id').single();if(created.error)throw created.error;exerciseRow=created.data }
-        const { data: log, error: logError } = await supabase.from('exercise_logs').insert({ user_id: auth.user.id, workout_session_id: session.id, exercise_id: exerciseRow.id, position: index }).select('id').single()
-        if (logError || !log) continue
-        const rows = exercise.sets.filter((set) => set.completed).map((set, setIndex) => ({ user_id: auth.user!.id, exercise_log_id: log.id, set_number: setIndex + 1, weight: set.weight, reps: set.reps, rir: set.rir, completed: true, performed_at: new Date().toISOString() }))
-        if (rows.length) await supabase.from('set_logs').insert(rows)
+      try {
+        for (const [index, exercise] of data.workout.entries()) {
+          const searchName=exercise.name.split(/\s+\/\s+|\s+or\s+/i)[0]
+          let { data: exerciseRow } = await supabase.from('exercises').select('id').ilike('name', searchName).limit(1).maybeSingle()
+          if (!exerciseRow) { const created=await supabase.from('exercises').insert({user_id:auth.user.id,name:exercise.name,category:'Custom',is_system:false}).select('id').single();if(created.error)throw created.error;exerciseRow=created.data }
+          const { data: log, error: logError } = await supabase.from('exercise_logs').insert({ user_id: auth.user.id, workout_session_id: session.id, exercise_id: exerciseRow.id, position: index }).select('id').single()
+          if (logError || !log) throw logError ?? new Error(`Could not save ${exercise.name}`)
+          const rows = exercise.sets.filter((set) => set.completed).map((set, setIndex) => ({ user_id: auth.user!.id, exercise_log_id: log.id, set_number: setIndex + 1, weight: set.weight, reps: set.reps, rir: set.rir, notes: set.notes?.trim() || null, completed: true, performed_at: new Date().toISOString() }))
+          if (rows.length) { const { error: setError } = await supabase.from('set_logs').insert(rows); if (setError) throw setError }
+        }
+        if(plannedSessionId){const {error:plannedError}=await supabase.from('planned_sessions').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',plannedSessionId);if(plannedError)throw plannedError}
+      } catch (saveError) {
+        await supabase.from('workout_sessions').delete().eq('id', session.id)
+        throw saveError
       }
-      if(plannedSessionId)await supabase.from('planned_sessions').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',plannedSessionId)
+      clearDraft()
     },
     resetDemo: () => setData({ ...demoDefaults, daily: { ...demoDaily }, meals: [...demoMeals], reminders: [...demoReminders], goals: [...demoGoals], trips: [...demoTrips], workout: demoWorkout.map((exercise) => ({ ...exercise, sets: exercise.sets.map((item) => ({ ...item })) })) }),
-  }), [auth.isDemo, auth.user, data, dateKey, persist, selectedDate, syncPending])
+  }), [auth.isDemo, auth.user, data, dateKey, persist, selectedDate, syncPending, workoutDraftKey])
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }
