@@ -17,8 +17,8 @@ export interface DataState {
   addReminder: (title: string, time?: string) => void
   addGoal: (title: string, category: string) => void
   addTrip: (destination: string, country: string) => void
-  updateSet: (exerciseId: string, setId: string, field: 'weight' | 'reps' | 'rir' | 'completed', value: number | boolean) => void
-  loadWorkoutFromPlan: (items: Array<{ id: string; title: string; metadata: Record<string, unknown> }>) => Promise<void>
+  updateSet: (exerciseId: string, setId: string, field: 'weight' | 'reps' | 'rir' | 'completed' | 'notes', value: number | boolean | string) => void
+  loadWorkoutFromPlan: (items: Array<{ id: string; title: string; metadata: Record<string, unknown> }>, plannedSessionId?: string) => Promise<void>
   copyStarterTemplate: () => void
   saveWorkout: (plannedSessionId?: string) => Promise<void>
   resetDemo: () => void

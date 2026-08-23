@@ -53,6 +53,7 @@ export interface SetLog {
   reps: number
   rir: number
   completed: boolean
+  notes?: string
 }
 
 export interface WorkoutExercise {
