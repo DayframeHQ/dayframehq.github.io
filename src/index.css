@@ -87,6 +87,9 @@ h3 { margin-bottom: 6px; font-size: 15px; }
 .btn-icon { width: 44px; padding: 0; }
 .btn-small { min-height: 36px; padding: 0 12px; border-radius: 11px; font-size: 13px; }
 .link-button { border: 0; background: none; color: var(--brand); padding: 0; cursor: pointer; font-weight: 700; }
+.section-links { gap: 4px; }
+.section-link { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; border-radius: 11px; }
+.section-link:hover { background: var(--brand-soft); }
 
 .field { display: grid; gap: 7px; }
 .field label { color: var(--muted); font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
@@ -168,7 +171,9 @@ h3 { margin-bottom: 6px; font-size: 15px; }
 .auth-magic-link { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .auth-message { margin: 4px 0 0; padding: 11px 13px; border-radius: 12px; color: var(--ink); background: var(--brand-soft); line-height: 1.45; }
 
-.calendar-strip { display: flex; gap: 7px; overflow-x: auto; padding: 2px 0 8px; scrollbar-width: none; }
+.calendar-navigation { width: 100%; display: flex; align-items: center; gap: 8px; }
+.calendar-strip { min-width: 0; flex: 1; display: flex; gap: 7px; overflow-x: auto; padding: 2px 0 8px; scrollbar-width: none; }
+.calendar-nav-button { flex: 0 0 auto; }
 .calendar-day { min-width: 48px; min-height: 65px; display: grid; place-items: center; gap: 1px; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); background: var(--surface); cursor: pointer; }
 .calendar-day strong { color: var(--ink); }
 .calendar-day.active { color: var(--surface); background: var(--ink); border-color: var(--ink); }
@@ -259,6 +264,7 @@ h3 { margin-bottom: 6px; font-size: 15px; }
 .focus-card { min-height: 250px; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; }
 .focus-card .eyebrow { margin-top: 22px; }
 .focus-card .btn { align-self: flex-start; }
+.week-context-note { line-height: 1.5; }
 .compact-health { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px; }
 .mini-metric { min-width: 0; display: grid; gap: 3px; }
 .mini-metric > span { color: var(--muted); }
@@ -359,6 +365,8 @@ h3 { margin-bottom: 6px; font-size: 15px; }
   .template-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .workout-summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .set-entry-controls, .set-entry-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .calendar-navigation { width: max-content; max-width: 100%; }
+  .calendar-strip { flex: 0 1 auto; }
 }
 
 @media (min-width: 960px) {
@@ -366,12 +374,12 @@ h3 { margin-bottom: 6px; font-size: 15px; }
 }
 
 @media (min-width: 1020px) {
-  .app-shell { padding-left: 230px; }
+  .app-shell { max-width: 1410px; margin-inline: auto; padding-left: 230px; }
   .app-main { padding: 42px 42px 60px; }
   .mobile-appbar { display: none; }
   .bottom-nav { display: none; }
   .add-fab { right: max(36px, calc((100vw - 230px - 1180px) / 2 + 36px)); bottom: 34px; }
-  .desktop-rail { position: fixed; inset: 0 auto 0 0; z-index: 30; width: 230px; display: flex; flex-direction: column; padding: 28px 18px; border-right: 1px solid var(--line); background: var(--surface); }
+  .desktop-rail { position: fixed; inset: 0 auto 0 max(0px, calc((100vw - 1410px) / 2)); z-index: 30; width: 230px; display: flex; flex-direction: column; padding: 28px 18px; border-right: 1px solid var(--line); background: var(--surface); }
   .desktop-nav { display: grid; gap: 6px; margin-top: 40px; }
   .desktop-nav .nav-item { min-height: 48px; display: flex; justify-content: flex-start; gap: 12px; padding: 0 13px; font-size: 14px; }
   .desktop-profile { margin-top: auto; }
