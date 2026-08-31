@@ -2,20 +2,24 @@ import { addDays, format, isSameDay, startOfWeek } from 'date-fns'
 import { ArrowRight, BedDouble, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, Droplets, Dumbbell, Footprints, HeartPulse, Utensils } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../context/DataContext'
-import { useNutritionSummary, usePlannedSessions, useReviews } from '../hooks/useV2'
+import { useNutritionSummary, usePlannedSessions, usePlans, useReviews } from '../hooks/useV2'
 import { dateKey, nutritionTotal } from '../lib/v2'
 import { usePersonalization } from '../hooks/usePersonalization'
 import { focusCategories } from '../lib/personalization'
+import { InterviewTodaySummary } from '../components/InterviewStudyOS'
+import { isInterviewRoadmap } from '../lib/interview'
 
 export function TodayPage(){
   const data=useData();const navigate=useNavigate();const date=data.selectedDate;const key=dateKey(date);const start=dateKey(startOfWeek(date,{weekStartsOn:1}));const end=dateKey(addDays(new Date(`${start}T12:00:00`),6))
-  const planned=usePlannedSessions(key,key);const reviews=useReviews(key,key);const summary=useNutritionSummary(key);const personalization=usePersonalization()
+  const planned=usePlannedSessions(key,key);const reviews=useReviews(key,key);const summary=useNutritionSummary(key);const personalization=usePersonalization();const studyPlans=usePlans('study');const roadmapSessions=usePlannedSessions(dateKey(addDays(date,-365)),dateKey(addDays(date,365)),'study')
   const train=planned.data?.find((item)=>item.domain==='train');const study=planned.data?.find((item)=>item.domain==='study');const nutrition=nutritionTotal(summary.data,data.meals.map((meal)=>({...meal,fiber:0})))
+  const activeStudyPlan=studyPlans.data?.find((item)=>item.status==='active')??studyPlans.data?.find((item)=>item.status==='paused');const activeStudySessions=(roadmapSessions.data??[]).filter((item)=>item.plan_id===activeStudyPlan?.id);const interviewMode=isInterviewRoadmap(activeStudyPlan,activeStudySessions)
   const reminders=data.reminders.filter((item)=>!item.completed).slice(0,3)
   return <div className="page">
     <header className="page-header"><div><p className="eyebrow">{format(date,'EEEE, MMMM d')}</p><h1>{isSameDay(date,new Date())?'Today, clearly.':'Your day in context.'}</h1><p className="muted">The parts of your life that matter now, placed first.</p></div><button className="btn btn-secondary btn-icon" aria-label="Today calendar"><CalendarDays size={19}/></button></header>
     <CalendarStrip date={date} onChange={data.setSelectedDate}/>
     {(planned.error||summary.error)&&<div className="auth-message section"><strong>V2 database update needed.</strong><br/><span className="small">Apply migrations 202608220002 and 202608220003 in Supabase, then reload. Existing V1 data remains safe.</span></div>}
+    {interviewMode&&<section className="section"><InterviewTodaySummary sessions={activeStudySessions} selectedDate={key} onOpen={()=>navigate('/study')}/></section>}
     <div className="today-focus-grid section">{focusCategories(personalization.interests).map((category) => category === 'Train'
       ? <FocusCard key={category} icon={<Dumbbell size={20}/>} label="Train" title={train?.title??'No workout scheduled'} detail={train?`${train.estimated_minutes??60} min · ${train.status.replace('_',' ')}`:'Choose or schedule a program in Train.'} action={train?.status==='active'?'Resume':'Open Train'} onClick={()=>navigate('/train')}/>
       : category === 'Study' ? <FocusCard key={category} icon={<BookOpen size={20}/>} label="Study" title={study?.title??'No study session scheduled'} detail={study?`${study.estimated_minutes??60} min · ${study.planned_items?.length??0} tasks${reviews.data?.length?` · ${reviews.data.length} review due`:''}`:'Choose a roadmap or plan the next block.'} action={study?.status==='active'?'Resume':'Open Study'} onClick={()=>navigate('/study')}/>
