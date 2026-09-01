@@ -2,6 +2,8 @@ export type Domain = 'train' | 'study'
 export type PlanStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived'
 export type PlannedStatus = 'planned' | 'active' | 'completed' | 'partially_completed' | 'skipped' | 'rescheduled'
 export type StudyResult = 'independent' | 'hint' | 'solution_assisted' | 'partial' | 'failed' | 'completed' | 'needs_review'
+export type InterviewSubject = 'DSA' | 'HLD' | 'LLD' | 'DISTRIBUTED_SYSTEMS' | 'REVISION' | 'MOCK'
+export type ProblemStatus = 'UNSEEN' | 'ATTEMPTED' | 'SOLVED_WITH_SOLUTION' | 'SOLVED_WITH_HINT' | 'SOLVED_INDEPENDENTLY' | 'MASTERED'
 
 export interface TemplateItem {
   type: string
@@ -42,7 +44,7 @@ export interface TemplateVersion {
   days_per_week_max: number | null
   expected_hours_per_week: number | null
   expected_session_minutes: number | null
-  content: { content_status?: 'complete' | 'catalog' | 'custom'; pacing?: Record<string, number>; phases: TemplatePhase[] }
+  content: { content_status?: 'complete' | 'catalog' | 'custom'; pacing?: Record<string, number>; interview_os?: boolean; canonical_start_date?: string; canonical_end_date?: string; note_schemas?: Record<string,string[]>; baseline?: Array<Record<string,unknown>>; phases: TemplatePhase[] }
   published_at?: string | null
 }
 
@@ -68,6 +70,7 @@ export interface Plan {
   start_date?: string | null
   target_date?: string | null
   expected_minutes_per_week?: number | null
+  template_id?: string | null
   template_version_id?: string | null
   source: 'curated_template' | 'custom' | 'imported_document'
 }
@@ -81,9 +84,18 @@ export interface PlannedItem {
   position: number
   estimated_minutes?: number | null
   required: boolean
-  status: 'planned' | 'active' | 'completed' | 'skipped'
+  status: 'planned' | 'active' | 'completed' | 'review_needed' | 'skipped'
   study_task_id?: string | null
   metadata: Record<string, unknown>
+  completed_at?: string | null
+  score?: number | null
+  confidence?: number | null
+  needs_revision?: boolean
+  attempt_count?: number
+  problem_status?: ProblemStatus | null
+  quick_note?: string | null
+  structured_notes?: Record<string,string>
+  rescheduled_for?: string | null
 }
 
 export interface PlannedSession {
@@ -130,7 +142,22 @@ export interface StudyAttempt {
   duration_seconds?: number | null
   confidence_after?: number | null
   what_i_missed?: string | null
+  score?: number | null
+  problem_status?: ProblemStatus | null
   created_at: string
+}
+
+export interface LearningResource {
+  id?: string
+  resource_key: string
+  provider: 'LEETCODE' | 'EDUCATIVE' | 'GEEKS_FOR_GEEKS' | 'SYSTEM_DESIGN_PRIMER' | 'REFACTORING_GURU'
+  title: string
+  provider_host: string
+  path: string
+  resource_type: string
+  is_primary: boolean
+  is_free: boolean
+  topic_key?: string | null
 }
 
 export interface NutritionValues {

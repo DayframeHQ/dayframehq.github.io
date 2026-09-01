@@ -2,7 +2,8 @@ import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { allTemplates, studyTemplates, trainTemplates } from '../data/v2Templates'
 import { dateKey } from '../lib/v2'
-import type { Domain, NutritionSummary, NutritionValues, Plan, PlannedItem, PlannedSession, PlanTemplate, StudyAttempt, StudyNote, StudyResult, StudySession } from '../types/v2'
+import { interviewBaseline, interviewResources, problemStatusForScore, revisionOffsets } from '../lib/interview'
+import type { Domain, InterviewSubject, LearningResource, NutritionSummary, NutritionValues, Plan, PlannedItem, PlannedSession, PlanTemplate, ProblemStatus, StudyAttempt, StudyNote, StudyResult, StudySession } from '../types/v2'
 
 interface DemoV2 {
   plans: Plan[]
@@ -11,18 +12,19 @@ interface DemoV2 {
   attempts: StudyAttempt[]
   notes: StudyNote[]
   reviews: Array<Record<string, unknown>>
+  problemAttempts: Array<Record<string, unknown>>
   summaries: NutritionSummary[]
 }
 
 const demoKey = 'dayframe_v2_demo_data'
-const emptyDemo: DemoV2 = { plans: [], sessions: [], studySessions: [], attempts: [], notes: [], reviews: [], summaries: [] }
+const emptyDemo: DemoV2 = { plans: [], sessions: [], studySessions: [], attempts: [], notes: [], reviews: [], problemAttempts: [], summaries: [] }
 
 function demoDefaults(): DemoV2 {
   const now=new Date(); const today=dateKey(now); const tomorrow=new Date(now);tomorrow.setDate(now.getDate()+1)
   const trainPlan:Plan={id:'demo-train-plan',domain:'train',name:'4-Day Recomp — Upper/Lower',goal:'Recomp',status:'active',start_date:today,expected_minutes_per_week:270,source:'curated_template'}
   const studyPlan:Plan={id:'demo-study-plan',domain:'study',name:'Computer Science for Software Engineers',goal:'Build durable CS foundations',status:'active',start_date:today,expected_minutes_per_week:600,source:'curated_template'}
   const make=(id:string,plan:Plan,title:string,day:string,items:string[]):PlannedSession=>({id,plan_id:plan.id,domain:plan.domain,title,scheduled_date:day,estimated_minutes:plan.domain==='train'?70:75,status:'planned',planned_items:items.map((title,index)=>({id:`${id}-${index}`,planned_session_id:id,domain:plan.domain,item_type:plan.domain==='train'?'exercise':index?'practice':'lesson',title,position:index,required:true,status:'planned',study_task_id:plan.domain==='study'?`demo-task-${index}`:null,metadata:{}}))})
-  return {plans:[trainPlan,studyPlan],sessions:[make('demo-train-today',trainPlan,'Upper A / Back emphasis',today,['Pull-Ups — 3 × 4–6','Lat Pulldown — 3 × 8–10','Chest-Supported Machine Row — 3 × 8–10','Incline Dumbbell Press — 3 × 8–10']),make('demo-study-today',studyPlan,'Graphs — Practice',today,['Graph representation and traversal','BFS / DFS practice','Explain cycle detection']),make('demo-study-next',studyPlan,'Graphs — Review',dateKey(tomorrow),['Explain graphs from memory','Review two missed problems'])],studySessions:[],attempts:[],notes:[{id:'demo-note',note_type:'concept',title:'BFS vs DFS',content:'BFS explores by distance; DFS follows a branch. Choice depends on the property being tested.',created_at:new Date().toISOString()}],reviews:[{id:'demo-review',topic_id:'graphs',scheduled_for:today,review_type:'recall',created_at:new Date().toISOString()}],summaries:[]}
+  return {plans:[trainPlan,studyPlan],sessions:[make('demo-train-today',trainPlan,'Upper A / Back emphasis',today,['Pull-Ups — 3 × 4–6','Lat Pulldown — 3 × 8–10','Chest-Supported Machine Row — 3 × 8–10','Incline Dumbbell Press — 3 × 8–10']),make('demo-study-today',studyPlan,'Graphs — Practice',today,['Graph representation and traversal','BFS / DFS practice','Explain cycle detection']),make('demo-study-next',studyPlan,'Graphs — Review',dateKey(tomorrow),['Explain graphs from memory','Review two missed problems'])],studySessions:[],attempts:[],notes:[{id:'demo-note',note_type:'concept',title:'BFS vs DFS',content:'BFS explores by distance; DFS follows a branch. Choice depends on the property being tested.',created_at:new Date().toISOString()}],reviews:[{id:'demo-review',topic_id:'graphs',scheduled_for:today,review_type:'recall',created_at:new Date().toISOString()}],problemAttempts:[],summaries:[]}
 }
 
 function readDemo(): DemoV2 {
@@ -208,6 +210,54 @@ export async function listReviews(identity:RepoIdentity,from:string,to:string){
 export async function listResources(identity:RepoIdentity){
   if(identity.isDemo)return allTemplates.filter((item)=>item.domain==='study').flatMap((item)=>item.sources??[])
   const client=clientFor(identity)!;const[owned,sources]=await Promise.all([client.from('study_resources').select('*').order('is_system',{ascending:false}).order('title'),client.from('template_sources').select('*').order('position')]);if(owned.error||sources.error)throw new Error(owned.error?.message??sources.error?.message??'Resources could not load');return[...(owned.data??[]),...(sources.data??[]).map((item)=>({...item,provider:item.author_or_org}))]
+}
+
+export async function listLearningResources(identity:RepoIdentity):Promise<LearningResource[]>{
+  if(identity.isDemo)return interviewResources
+  const {data,error}=await clientFor(identity)!.from('learning_resources').select('*').order('is_primary',{ascending:false}).order('title')
+  if(error)throw new Error(error.message);return(data??[])as LearningResource[]
+}
+
+type InterviewItemPatch=Partial<Pick<PlannedItem,'status'|'completed_at'|'score'|'confidence'|'needs_revision'|'attempt_count'|'problem_status'|'quick_note'|'structured_notes'|'rescheduled_for'|'metadata'>>
+export async function updateInterviewItem(identity:RepoIdentity,id:string,patch:InterviewItemPatch){
+  if(identity.isDemo){const state=readDemo();writeDemo({...state,sessions:state.sessions.map((session)=>({...session,planned_items:session.planned_items?.map((item)=>item.id===id?{...item,...patch}:item)}))});return}
+  const {error}=await clientFor(identity)!.from('planned_items').update(patch).eq('id',id);if(error)throw new Error(error.message)
+}
+
+export async function recordInterviewProblem(identity:RepoIdentity,input:{item:PlannedItem;score:number;durationMinutes:number;confidence:number;notes:string}){
+  const score=Math.max(0,Math.min(3,input.score));const problemStatus=problemStatusForScore(score);const now=new Date();const needsRevision=score<=2
+  const patch:InterviewItemPatch={status:'completed',completed_at:now.toISOString(),score,confidence:input.confidence,needs_revision:needsRevision,attempt_count:(input.item.attempt_count??0)+1,problem_status:problemStatus,quick_note:input.notes||input.item.quick_note}
+  const reviewDates=revisionOffsets(score).map((days)=>{const date=new Date(now);date.setDate(date.getDate()+days);return dateKey(date)})
+  if(identity.isDemo){const state=readDemo();const attempt={id:crypto.randomUUID(),planned_item_id:input.item.id,attempt_number:patch.attempt_count,result:problemStatus,score,duration_minutes:input.durationMinutes,confidence:input.confidence,notes:input.notes,attempted_at:now.toISOString()};const reviews=input.item.study_task_id?reviewDates.map((scheduled_for,index)=>({id:crypto.randomUUID(),task_id:input.item.study_task_id,scheduled_for,review_type:score<=1||index>0?'reimplement':'explain',created_at:now.toISOString()})):[];writeDemo({...state,problemAttempts:[attempt,...state.problemAttempts],reviews:[...reviews,...state.reviews.filter((review)=>review.task_id!==input.item.study_task_id||Boolean(review.completed_at))],sessions:state.sessions.map((session)=>({...session,planned_items:session.planned_items?.map((item)=>item.id===input.item.id?{...item,...patch}:item)}))});return}
+  const client=clientFor(identity)!;const {error}=await client.from('planned_items').update(patch).eq('id',input.item.id);if(error)throw new Error(error.message)
+  const {error:attemptError}=await client.from('problem_attempts').insert({user_id:identity.user!.id,planned_item_id:input.item.id,attempt_number:patch.attempt_count,result:problemStatus,score,duration_minutes:input.durationMinutes,confidence:input.confidence,notes:input.notes});if(attemptError)throw new Error(attemptError.message)
+  if(input.item.study_task_id){const {error:clearError}=await client.from('study_reviews').delete().eq('task_id',input.item.study_task_id).is('completed_at',null);if(clearError)throw new Error(clearError.message);const rows=reviewDates.map((scheduled_for,index)=>({user_id:identity.user!.id,task_id:input.item.study_task_id,scheduled_for,review_type:score<=1||index>0?'reimplement':'explain'}));const {error:reviewError}=await client.from('study_reviews').insert(rows);if(reviewError)throw new Error(reviewError.message)}
+}
+
+export async function listProblemAttempts(identity:RepoIdentity,itemId:string){
+  if(identity.isDemo)return readDemo().problemAttempts.filter((item)=>item.planned_item_id===itemId)
+  const {data,error}=await clientFor(identity)!.from('problem_attempts').select('*').eq('planned_item_id',itemId).order('attempted_at',{ascending:false});if(error)throw new Error(error.message);return data??[]
+}
+
+export async function listItemReviews(identity:RepoIdentity,taskId:string){
+  if(identity.isDemo)return readDemo().reviews.filter((item)=>item.task_id===taskId).sort((a,b)=>String(a.scheduled_for).localeCompare(String(b.scheduled_for)))
+  const {data,error}=await clientFor(identity)!.from('study_reviews').select('*').eq('task_id',taskId).order('scheduled_for');if(error)throw new Error(error.message);return data??[]
+}
+
+export async function addCustomInterviewTask(identity:RepoIdentity,input:{planId:string;scheduledDate:string;subject:InterviewSubject;title:string;minutes:number;leetcodeSlug?:string;difficulty?:string}){
+  const isProblem=Boolean(input.leetcodeSlug);const metadata={interview_os:true,interview_task_id:`custom-${crypto.randomUUID()}`,week:null,subject:isProblem?'DSA':input.subject,topic:'custom',priority:'optional',resource_keys:[],leetcode_slug:input.leetcodeSlug||undefined,difficulty:input.difficulty||undefined}
+  if(identity.isDemo){const state=readDemo();const existing=state.sessions.find((session)=>session.plan_id===input.planId&&session.scheduled_date===input.scheduledDate);const item:PlannedItem={id:crypto.randomUUID(),planned_session_id:existing?.id??crypto.randomUUID(),domain:'study',item_type:isProblem?'problem':'custom',title:input.title,position:existing?.planned_items?.length??0,estimated_minutes:input.minutes,required:false,status:'planned',study_task_id:crypto.randomUUID(),metadata};if(existing)writeDemo({...state,sessions:state.sessions.map((session)=>session.id===existing.id?{...session,planned_items:[...(session.planned_items??[]),item]}:session)});else writeDemo({...state,sessions:[...state.sessions,{id:item.planned_session_id,plan_id:input.planId,domain:'study',title:'Custom interview tasks',scheduled_date:input.scheduledDate,estimated_minutes:input.minutes,status:'planned',planned_items:[item]}]});return}
+  const client=clientFor(identity)!;const {data:existingSession,error:sessionError}=await client.from('planned_sessions').select('id').eq('plan_id',input.planId).eq('scheduled_date',input.scheduledDate).limit(1).maybeSingle();if(sessionError)throw new Error(sessionError.message);let session=existingSession
+  if(!session){const created=await client.from('planned_sessions').insert({user_id:identity.user!.id,plan_id:input.planId,domain:'study',title:'Custom interview tasks',scheduled_date:input.scheduledDate,estimated_minutes:input.minutes,status:'planned'}).select('id').single();if(created.error)throw new Error(created.error.message);session=created.data}
+  const task=await client.from('study_tasks').insert({user_id:identity.user!.id,is_system:false,task_type:isProblem?'problem':'custom',title:input.title,estimated_minutes:input.minutes,metadata}).select('id').single();if(task.error)throw new Error(task.error.message)
+  const {error}=await client.from('planned_items').insert({user_id:identity.user!.id,planned_session_id:session.id,domain:'study',item_type:isProblem?'problem':'custom',title:input.title,position:999,estimated_minutes:input.minutes,required:false,status:'planned',study_task_id:task.data.id,metadata});if(error)throw new Error(error.message)
+}
+
+export async function applyInterviewBaseline(identity:RepoIdentity,planId:string){
+  if(identity.isDemo){const state=readDemo();if(state.sessions.some((session)=>session.plan_id===planId&&session.title==='Interview Prep — Prior progress'))return;const sessionId=crypto.randomUUID();const items:PlannedItem[]=interviewBaseline.map((seed,index)=>({id:crypto.randomUUID(),planned_session_id:sessionId,domain:'study',item_type:seed.type,title:seed.title,position:index,estimated_minutes:seed.minutes,required:true,status:seed.initialStatus==='COMPLETED'?'completed':'active',study_task_id:crypto.randomUUID(),score:seed.score,problem_status:seed.problemStatus as ProblemStatus,completed_at:seed.initialStatus==='COMPLETED'?'2026-08-31T18:00:00.000Z':null,metadata:{interview_os:true,interview_task_id:seed.id,week:-1,subject:seed.subject,topic:seed.topic,difficulty:'difficulty'in seed?seed.difficulty:undefined,leetcode_number:'leetcodeNumber'in seed?seed.leetcodeNumber:undefined,leetcode_slug:'leetcodeSlug'in seed?seed.leetcodeSlug:undefined,priority:'high',resource_keys:[]}}));writeDemo({...state,sessions:[...state.sessions,{id:sessionId,plan_id:planId,domain:'study',title:'Interview Prep — Prior progress',description:'Imported Aug 31 baseline',scheduled_date:'2026-08-31',estimated_minutes:items.reduce((sum,item)=>sum+(item.estimated_minutes??0),0),status:'partially_completed',planned_items:items}]});return}
+  const client=clientFor(identity)!;const existing=await client.from('planned_sessions').select('id').eq('plan_id',planId).eq('title','Interview Prep — Prior progress').maybeSingle();if(existing.error)throw new Error(existing.error.message);if(existing.data)return
+  const session=await client.from('planned_sessions').insert({user_id:identity.user!.id,plan_id:planId,domain:'study',title:'Interview Prep — Prior progress',description:'Imported Aug 31 baseline',scheduled_date:'2026-08-31',estimated_minutes:interviewBaseline.reduce((sum,item)=>sum+item.minutes,0),status:'partially_completed'}).select('id').single();if(session.error)throw new Error(session.error.message)
+  for(const [index,seed]of interviewBaseline.entries()){const metadata={interview_os:true,interview_task_id:seed.id,week:-1,subject:seed.subject,topic:seed.topic,difficulty:'difficulty'in seed?seed.difficulty:undefined,leetcode_number:'leetcodeNumber'in seed?seed.leetcodeNumber:undefined,leetcode_slug:'leetcodeSlug'in seed?seed.leetcodeSlug:undefined,priority:'high',resource_keys:[]};const task=await client.from('study_tasks').insert({user_id:identity.user!.id,is_system:false,task_type:seed.type==='problem'?'problem':'custom',title:seed.title,estimated_minutes:seed.minutes,metadata}).select('id').single();if(task.error)throw new Error(task.error.message);const {error}=await client.from('planned_items').insert({user_id:identity.user!.id,planned_session_id:session.data.id,domain:'study',item_type:seed.type,title:seed.title,position:index,estimated_minutes:seed.minutes,required:true,status:seed.initialStatus==='COMPLETED'?'completed':'active',study_task_id:task.data.id,score:seed.score,problem_status:seed.problemStatus,completed_at:seed.initialStatus==='COMPLETED'?'2026-08-31T18:00:00.000Z':null,metadata});if(error)throw new Error(error.message)}
 }
 
 export async function getNutritionSummary(identity:RepoIdentity,date:string):Promise<NutritionSummary|null>{

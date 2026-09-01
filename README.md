@@ -23,7 +23,7 @@ Secondary routes are `/nutrition`, `/health`, and `/settings`. Legacy `/food` an
 - Shared normalized planning engine with immutable public template versions and explicit transactional copies
 - Complete 1–7-day workout catalog, including the exact 4-Day Recomp golden program
 - Complete 40-week Computer Science for Software Engineers roadmap (light, standard, intensive pacing metadata)
-- Complete 8-week Senior Software / Backend Interview sprint across DSA, LLD, HLD, mocks and behavioral work
+- Complete 9-week Software Engineering Interview Preparation OS: 62 exact study days, 87 unique LeetCode problems, HLD, LLD, distributed systems, mocks, rollover, scoring, revision and structured notes
 - Specialized workout-set and Study-attempt execution schemas; planning is shared, results are not forced into a generic table
 - Manual attempt outcomes, independent solve rate, structured notes, review dates and honest no-data states
 - Authoritative daily nutrition summaries or itemized meals with a single non-double-counting calculation rule
@@ -62,6 +62,7 @@ The V1 migration has already been applied and must not be edited or rerun. Apply
 1. `supabase/migrations/202608220002_v2_plan_study_schema.sql`
 2. `supabase/migrations/202608220003_v2_curated_templates.sql`
 3. `supabase/migrations/202608230001_secure_account_deletion.sql`
+4. `supabase/migrations/202609010001_interview_study_os.sql`
 
 CLI:
 
@@ -73,7 +74,7 @@ npx supabase db push
 
 If the CLI account lacks project privileges, use Supabase Dashboard → SQL Editor → New query, paste and run each file separately in timestamp order. A successful run may say “Success. No rows returned.” Do not rerun an already successful migration.
 
-V2 is non-destructive: it retains every V1 table and row, adds compatibility links from workout programs/sessions, and creates owner-only plan, Study, nutrition-summary and import-job tables. Public templates are authenticated read-only. `copy_template_version` verifies `auth.uid()`, accepts only a published version, and copies a complete plan in one transaction.
+V2 is non-destructive: it retains every V1 table and row, adds compatibility links from workout programs/sessions, and creates owner-only plan, Study, nutrition-summary and import-job tables. The interview migration publishes version 2.0 of the existing interview template while leaving prior private copies intact; users explicitly upgrade or copy it. Public templates and learning resources are authenticated read-only. `copy_template_version` verifies `auth.uid()`, accepts only a published version, and copies a complete plan in one transaction.
 
 Local RLS tests:
 

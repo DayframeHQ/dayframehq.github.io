@@ -1,4 +1,5 @@
 import type { PlanTemplate, TemplatePhase } from '../types/v2'
+import { interviewTemplate } from '../lib/interview'
 
 const exercise = (title: string, sets: number, repMin: number, repMax: number) => ({ type: 'exercise', title, metadata: { sets, rep_min: repMin, rep_max: repMax, target_rir: 2 } })
 const train = (n: number, name: string, description: string, goal: string, difficulty: string, sessions: Array<{ title: string; day: number; exercises: ReturnType<typeof exercise>[] }>, featured = false): PlanTemplate => ({
@@ -42,9 +43,7 @@ const csPhases = [
   phase('Phase 9 — Capstone',39,['Production-style capstone','Harden and review']),
 ]
 
-const interviewPhases = [phase('8-Week Interview Sprint',1,['Arrays, Hashing and Prefix Sum','Two Pointers, Sliding Window and Linked Lists','Binary Search, Stack and Monotonic Stack','Trees, BST and Heap','Graphs, Topological Sort and Union Find','Dynamic Programming','Greedy, Intervals, Backtracking and Trie','Mixed timed interview mode'])]
-
-const studyTemplates: PlanTemplate[] = studyMetadata.map(([id,name,weeks,description,difficulty,goal], index) => ({
+const baseStudyTemplates: PlanTemplate[] = studyMetadata.map(([id,name,weeks,description,difficulty,goal], index) => ({
   id, slug: id, domain: 'study', name, short_description: description, goal, difficulty, featured: index === 1 || index === 5,
   sources: index===1?[
     {title:'The Missing Semester',author_or_org:'MIT',url:'https://missing.csail.mit.edu/'},
@@ -56,8 +55,10 @@ const studyTemplates: PlanTemplate[] = studyMetadata.map(([id,name,weeks,descrip
     {title:'LeetCode Problems',author_or_org:'LeetCode',url:'https://leetcode.com/problemset/'},
     {title:'System Design Primer',author_or_org:'donnemartin',url:'https://github.com/donnemartin/system-design-primer'},
   ]:[],
-  version: { id: `${id}-v1`, version: '1.0', duration_weeks: weeks || null, days_per_week_min: index === 5 ? 6 : 3, days_per_week_max: index === 5 ? 7 : 6, expected_hours_per_week: index === 5 ? 23 : index === 1 ? 10 : null, expected_session_minutes: 75, content: { content_status: index === 1 || index === 5 ? 'complete' : index === 6 ? 'custom' : 'catalog', pacing: index === 1 ? { light: 6, standard: 10, intensive: 15 } : undefined, phases: index === 1 ? csPhases : index === 5 ? interviewPhases : [] } },
+  version: { id: `${id}-v1`, version: '1.0', duration_weeks: weeks || null, days_per_week_min: index === 5 ? 6 : 3, days_per_week_max: index === 5 ? 7 : 6, expected_hours_per_week: index === 5 ? 23 : index === 1 ? 10 : null, expected_session_minutes: 75, content: { content_status: index === 1 || index === 5 ? 'complete' : index === 6 ? 'custom' : 'catalog', pacing: index === 1 ? { light: 6, standard: 10, intensive: 15 } : undefined, phases: index === 1 ? csPhases : [] } },
 }))
+
+const studyTemplates: PlanTemplate[] = baseStudyTemplates.map((template) => template.id === 'study-interview' ? interviewTemplate : template)
 
 export const trainTemplates: PlanTemplate[] = [
   train(1,'Full Body — Minimum Effective','Minimum-frequency option for constrained weeks.','General fitness','New',[{title:'Full Body',day:0,exercises:[exercise('Leg Press or Squat Variation',3,6,10),exercise('Incline DB or Machine Press',3,6,10),exercise('Lat Pulldown or Pull-Up',3,6,10),exercise('Leg Curl',3,8,12)]}]),
