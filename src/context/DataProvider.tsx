@@ -210,7 +210,7 @@ export function DataProvider({ children }: PropsWithChildren) {
           const completed=exercise.sets.filter((set)=>set.completed)
           if(exercise.trackingMode==='duration'){
             const minutes=completed.reduce((sum,set)=>sum+set.reps,0)
-            if(minutes){const movementNotes=completed.map((set)=>set.notes?.trim()).filter(Boolean).join(' · ');const {error:activityError}=await supabase.from('activity_logs').insert({user_id:auth.user.id,activity_date:dateKey,activity_type:exercise.activityType??'other',duration_minutes:minutes,source_type:'manual',notes:[`Logged from Train · ${exercise.name}`,movementNotes].filter(Boolean).join(' · ')});if(activityError)throw activityError}
+            if(minutes){const movementNotes=completed.map((set)=>set.notes?.trim()).filter(Boolean).join(' · ');const {error:activityError}=await supabase.from('activity_logs').insert({user_id:auth.user.id,activity_date:dateKey,activity_type:exercise.activityType??'other',duration_minutes:minutes,source_type:'manual',notes:[`Logged from Workouts · ${exercise.name}`,movementNotes].filter(Boolean).join(' · ')});if(activityError)throw activityError}
           }else{
             const rows=completed.map((set,setIndex)=>({user_id:auth.user!.id,exercise_log_id:log.id,set_number:setIndex+1,weight:set.weight,reps:set.reps,rir:set.rir,notes:set.notes?.trim()||null,completed:true,performed_at:new Date().toISOString()}))
             if(rows.length){const {error:setError}=await supabase.from('set_logs').insert(rows);if(setError)throw setError}

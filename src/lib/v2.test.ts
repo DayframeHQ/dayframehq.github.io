@@ -14,7 +14,7 @@ describe('V2 correctness rules',()=>{
   it('selects the newest published immutable version',()=>expect(selectLatestPublishedVersion([version(null),version('2026-01-01'),version('2026-08-01')])?.published_at).toBe('2026-08-01'))
   it('suggests progression only when every completed set reaches the top range',()=>{expect(progressionSuggestion([{completed:true,reps:10,rir:2},{completed:true,reps:10,rir:1}],10)).toContain('load increase');expect(progressionSuggestion([{completed:true,reps:9,rir:2}],10)).toBeNull()})
   it('uses explicit review intervals',()=>expect(reviewDate('21d',new Date('2026-08-01T12:00:00'))).toBe('2026-08-22'))
-  it('keeps Quick Add first-level categories narrow',()=>expect(quickAddCategories).toEqual(['Recent','Train','Study','Health','Life']))
+  it('keeps Quick Add first-level categories narrow',()=>expect(quickAddCategories).toEqual(['Recent','Workouts','Study','Health','Life']))
   it('rejects malformed imported plan output',()=>expect(planImportSchema.safeParse({plan:{name:'',domain:'study'},phases:[],blocks:[],sessions:[],items:[],resources:[]}).success).toBe(false))
   it('maps all normalized template copy rows',()=>{const phases=[{name:'P',start_week:1,end_week:1,blocks:[{name:'W',type:'week' as const,week:1,sessions:[{title:'S',day_offset:0,minutes:60,items:[{type:'lesson',title:'I'}]}]}]}];expect(templateCopyCounts(version('2026-08-01',phases))).toEqual({phases:1,blocks:1,sessions:1,items:1})})
   it('builds range filters with real inclusive date boundaries',()=>expect(progressRange('7D',new Date('2026-08-22T12:00:00'))).toEqual({from:'2026-08-16',to:'2026-08-22',label:'7D'}))

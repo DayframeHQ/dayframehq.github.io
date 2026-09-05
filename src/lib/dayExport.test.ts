@@ -11,10 +11,18 @@ describe('day export',()=>{
   it('creates one workout reminder and separate incomplete study tasks',()=>{
     const result=buildDayExport('2026-09-05',sessions,[{id:'travel-1',title:'Flight check-in',destination:'Kyoto',due_at:'2026-09-05T18:00:00'}])
     expect(result.items.map((item)=>item.title)).toEqual(['Upper A','3Sum Closest','Flight check-in'])
-    expect(result.noteText).toContain('TRAIN\n□ Upper A')
+    expect(result.noteText).toContain('WORKOUTS\n□ Upper A')
     expect(result.noteText).toContain('STUDY\n□ 3Sum Closest')
     expect(result.noteText).toContain('TRAVEL\n□ Flight check-in')
-    expect(JSON.parse(result.reminderPayload).items[0]).toMatchObject({title:'[Train] Upper A',dueAt:'2026-09-05T07:00:00'})
+    expect(JSON.parse(result.reminderPayload).items[0]).toMatchObject({title:'[Workouts] Upper A',dueAt:'2026-09-05T07:00:00'})
+  })
+
+  it('includes the next actionable workout when the selected day has only study',()=>{
+    const nextWorkout={...sessions[0],scheduled_date:'2026-09-07'}
+    const result=buildDayExport('2026-09-05',[sessions[1]],[],nextWorkout)
+    expect(result.items.map((item)=>item.title)).toEqual(['Upper A','3Sum Closest'])
+    expect(result.noteText).toContain('WORKOUTS\n□ Upper A\n  Next workout · Mon, Sep 7')
+    expect(JSON.parse(result.reminderPayload).items[0]).toMatchObject({title:'[Workouts] Upper A',dueAt:'2026-09-07T07:00:00'})
   })
 
   it('does not export completed sessions or tasks from another day',()=>{

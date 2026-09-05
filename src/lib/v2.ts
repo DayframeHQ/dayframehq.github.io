@@ -42,7 +42,7 @@ export function progressRange(value: '7D' | '30D' | '3M' | '6M' | '1Y', now = ne
 
 export function noDataLabel(count: number) { return count ? null : 'Not enough data yet' }
 
-export const quickAddCategories = ['Recent', 'Train', 'Study', 'Health', 'Life'] as const
+export const quickAddCategories = ['Recent', 'Workouts', 'Study', 'Health', 'Life'] as const
 
 export function selectLatestPublishedVersion(versions: TemplateVersion[]) {
   return versions.filter((item)=>item.published_at).sort((a,b)=>String(b.published_at).localeCompare(String(a.published_at)))[0]??null
