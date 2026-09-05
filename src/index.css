@@ -325,6 +325,7 @@ h3 { margin-bottom: 6px; font-size: 15px; }
 .day-export-item b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .day-export-item small { color: var(--muted); line-height: 1.4; }
 .day-export-actions { display: grid; gap: 9px; }
+.day-export-status { position: sticky; z-index: 3; top: -10px; margin: 0 0 12px; border: 1px solid var(--line); box-shadow: 0 8px 20px rgba(24,21,19,.1); }
 .day-export-action { width: 100%; min-height: 70px; display: grid; grid-template-columns: 40px minmax(0,1fr) 18px; align-items: center; gap: 11px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 15px; color: var(--ink); background: var(--surface); cursor: pointer; text-align: left; }
 .day-export-action:disabled { cursor: not-allowed; opacity: .48; }
 .day-export-action > span:nth-child(2) { min-width: 0; display: grid; gap: 3px; }
@@ -332,6 +333,13 @@ h3 { margin-bottom: 6px; font-size: 15px; }
 .day-export-action strong { font-size: 13px; }
 .day-export-action small { color: var(--muted); font-size: 10px; }
 .export-notice { padding: 11px 13px; border-radius: 11px; color: var(--muted); background: var(--brand-soft); line-height: 1.45; }
+.shortcut-management { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 13px; }
+.shortcut-management > div:first-child { min-width: 0; display: grid; gap: 2px; }
+.shortcut-management > .row { flex-wrap: wrap; }
+.shortcut-management small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.danger-link { color: var(--danger); }
+.export-reset-confirm { display: grid; gap: 8px; padding: 13px; border: 1px solid color-mix(in srgb, var(--danger) 32%, var(--line)); border-radius: 13px; background: var(--danger-soft); }
+.export-reset-confirm p { margin: 0; }
 .shortcut-setup { border-color: var(--ink); }
 .shortcut-setup h3 { margin: 4px 0 7px; font-size: 18px; }
 .shortcut-steps { display: grid; gap: 8px; margin: 14px 0; padding-left: 21px; color: var(--muted); font-size: 11px; line-height: 1.5; }
