@@ -1,22 +1,25 @@
+import { useState } from 'react'
 import { addDays, format, isSameDay, startOfWeek } from 'date-fns'
-import { ArrowRight, BedDouble, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, Droplets, Dumbbell, Footprints, HeartPulse, Utensils } from 'lucide-react'
+import { ArrowRight, BedDouble, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, Droplets, Dumbbell, Footprints, HeartPulse, Share2, Utensils } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../context/DataContext'
-import { useNutritionSummary, usePlannedSessions, usePlans, useReviews } from '../hooks/useV2'
+import { useDayTravelItems, useNutritionSummary, usePlannedSessions, usePlans, useReviews } from '../hooks/useV2'
 import { dateKey, nutritionTotal } from '../lib/v2'
 import { usePersonalization } from '../hooks/usePersonalization'
 import { focusCategories } from '../lib/personalization'
 import { InterviewTodaySummary } from '../components/InterviewStudyOS'
 import { isInterviewRoadmap } from '../lib/interview'
+import { buildDayExport } from '../lib/dayExport'
+import { DayExportSheet } from '../components/DayExportSheet'
 
 export function TodayPage(){
-  const data=useData();const navigate=useNavigate();const date=data.selectedDate;const key=dateKey(date);const start=dateKey(startOfWeek(date,{weekStartsOn:1}));const end=dateKey(addDays(new Date(`${start}T12:00:00`),6))
-  const planned=usePlannedSessions(key,key);const reviews=useReviews(key,key);const summary=useNutritionSummary(key);const personalization=usePersonalization();const studyPlans=usePlans('study');const roadmapSessions=usePlannedSessions(dateKey(addDays(date,-365)),dateKey(addDays(date,365)),'study')
+  const[exportOpen,setExportOpen]=useState(false);const data=useData();const navigate=useNavigate();const date=data.selectedDate;const key=dateKey(date);const start=dateKey(startOfWeek(date,{weekStartsOn:1}));const end=dateKey(addDays(new Date(`${start}T12:00:00`),6))
+  const planned=usePlannedSessions(key,key);const travel=useDayTravelItems(key);const reviews=useReviews(key,key);const summary=useNutritionSummary(key);const personalization=usePersonalization();const studyPlans=usePlans('study');const roadmapSessions=usePlannedSessions(dateKey(addDays(date,-365)),dateKey(addDays(date,365)),'study');const dayExport=buildDayExport(key,planned.data??[],travel.data??[])
   const train=planned.data?.find((item)=>item.domain==='train');const study=planned.data?.find((item)=>item.domain==='study');const nutrition=nutritionTotal(summary.data,data.meals.map((meal)=>({...meal,fiber:0})))
   const activeStudyPlan=studyPlans.data?.find((item)=>item.status==='active')??studyPlans.data?.find((item)=>item.status==='paused');const activeStudySessions=(roadmapSessions.data??[]).filter((item)=>item.plan_id===activeStudyPlan?.id);const interviewMode=isInterviewRoadmap(activeStudyPlan,activeStudySessions)
   const reminders=data.reminders.filter((item)=>!item.completed).slice(0,3)
   return <div className="page">
-    <header className="page-header"><div><p className="eyebrow">{format(date,'EEEE, MMMM d')}</p><h1>{isSameDay(date,new Date())?'Today, clearly.':'Your day in context.'}</h1><p className="muted">The parts of your life that matter now, placed first.</p></div><button className="btn btn-secondary btn-icon" aria-label="Today calendar"><CalendarDays size={19}/></button></header>
+    <header className="page-header"><div><p className="eyebrow">{format(date,'EEEE, MMMM d')}</p><h1>{isSameDay(date,new Date())?'Today, clearly.':'Your day in context.'}</h1><p className="muted">The parts of your life that matter now, placed first.</p></div><button className="btn btn-secondary btn-icon" aria-label="Export selected day" onClick={()=>setExportOpen(true)}><Share2 size={19}/></button></header>
     <CalendarStrip date={date} onChange={data.setSelectedDate}/>
     {(planned.error||summary.error)&&<div className="auth-message section"><strong>V2 database update needed.</strong><br/><span className="small">Apply migrations 202608220002 and 202608220003 in Supabase, then reload. Existing V1 data remains safe.</span></div>}
     {interviewMode&&<section className="section"><InterviewTodaySummary sessions={activeStudySessions} selectedDate={key} onOpen={()=>navigate('/study')}/></section>}
@@ -30,6 +33,7 @@ export function TodayPage(){
     </div></section>
     <section className="section"><div className="section-title"><h2>Life reminders</h2><button className="link-button small section-link" onClick={()=>navigate('/life')}>Open Life <ArrowRight size={14}/></button></div><div className="card card-pad">{reminders.length?reminders.map((item)=><button className="reminder-row" key={item.id} onClick={()=>data.toggleReminder(item.id)}><span className={`check ${item.completed?'checked':''}`}>{item.completed&&<Check size={14}/>}</span><span><strong>{item.title}</strong><span className="tiny muted">{item.time??item.category}</span></span></button>):<div className="empty-state"><HeartPulse size={24}/><p>No open reminders for this day.</p></div>}</div></section>
     <p className="small muted section week-context-note">Week shown: {format(new Date(`${start}T12:00:00`),'MMM d')}–{format(new Date(`${end}T12:00:00`),'MMM d')}. Historical dates remain editable from the strip above.</p>
+    <DayExportSheet open={exportOpen} onClose={()=>setExportOpen(false)} value={dayExport}/>
   </div>
 }
 function FocusCard({icon,label,title,detail,action,onClick}:{icon:React.ReactNode;label:string;title:string;detail:string;action:string;onClick:()=>void}){return <article className="card focus-card"><div><span className="icon-bubble">{icon}</span></div><div><p className="eyebrow">{label}</p><h2>{title}</h2><p className="muted small">{detail}</p></div><button className="btn btn-primary" onClick={onClick}>{action}<ArrowRight size={16}/></button></article>}

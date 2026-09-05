@@ -4,6 +4,7 @@ import { allTemplates, studyTemplates, trainTemplates } from '../data/v2Template
 import { dateKey } from '../lib/v2'
 import { interviewBaseline, interviewResources, problemStatusForScore, revisionOffsets } from '../lib/interview'
 import type { TrainExerciseOption } from '../data/trainExerciseLibrary'
+import type { DayTravelItem } from '../lib/dayExport'
 import type { Domain, InterviewSubject, LearningResource, NutritionSummary, NutritionValues, Plan, PlannedItem, PlannedSession, PlanTemplate, ProblemStatus, StudyAttempt, StudyNote, StudyResult, StudySession } from '../types/v2'
 
 interface DemoV2 {
@@ -128,6 +129,14 @@ export async function listPlannedSessions(identity: RepoIdentity, from: string, 
   const { data, error } = await query
   if (error) throw new Error(error.message)
   return (data ?? []).map((session) => ({ ...session, planned_items: (session.planned_items ?? []).sort((a: PlannedItem,b: PlannedItem) => a.position-b.position) })) as PlannedSession[]
+}
+
+export async function listDayTravelItems(identity:RepoIdentity,date:string):Promise<DayTravelItem[]> {
+  if(identity.isDemo)return[]
+  const start=new Date(`${date}T00:00:00`).toISOString();const end=new Date(`${date}T23:59:59.999`).toISOString()
+  const {data,error}=await clientFor(identity)!.from('travel_items').select('id,title,details,due_at,travel_plans(destination)').gte('due_at',start).lte('due_at',end).neq('completed',true).order('due_at')
+  if(error)throw new Error(error.message)
+  return(data??[]).map((item)=>{const plan=Array.isArray(item.travel_plans)?item.travel_plans[0]:item.travel_plans;return{id:item.id,title:item.title,details:item.details,due_at:item.due_at,destination:plan?.destination??null}})
 }
 
 export async function updatePlannedSession(identity: RepoIdentity, id: string, patch: Partial<Pick<PlannedSession,'status'|'scheduled_date'|'completed_at'>>) {
