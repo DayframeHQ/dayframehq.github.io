@@ -8,7 +8,7 @@ import { useData } from '../context/DataContext'
 
 const nav = [
   { to: '/', label: 'Today', icon: Home },
-  { to: '/train', label: 'Train', icon: Dumbbell },
+  { to: '/train', label: 'Workouts', icon: Dumbbell },
   { to: '/study', label: 'Study', icon: BookOpen },
   { to: '/life', label: 'Life', icon: Sparkles },
   { to: '/progress', label: 'Progress', icon: BarChart3 },

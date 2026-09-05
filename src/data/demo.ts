@@ -12,7 +12,7 @@ export const demoReminders: Reminder[] = [
 ]
 
 export const demoGoals: Goal[] = [
-  { id: 'g1', title: 'Build a consistent training rhythm', category: 'Fitness', progress: 68, nextAction: 'Complete this week’s final session', status: 'active' },
+  { id: 'g1', title: 'Build a consistent workout rhythm', category: 'Fitness', progress: 68, nextAction: 'Complete this week’s final session', status: 'active' },
   { id: 'g2', title: 'Ship a meaningful side project', category: 'Projects', progress: 42, nextAction: 'Finish the onboarding flow', status: 'active' },
 ]
 

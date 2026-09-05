@@ -1,6 +1,6 @@
 export type DayframeInterest = 'train' | 'study' | 'health' | 'life' | 'everything' | 'exploring'
 export type PersonalizationDomain = 'train' | 'study' | 'nutrition' | 'health'
-export type QuickCategory = 'Train' | 'Study' | 'Health' | 'Life'
+export type QuickCategory = 'Workouts' | 'Study' | 'Health' | 'Life'
 
 export interface DomainSetupValue {
   completed_at?: string
@@ -9,7 +9,7 @@ export interface DomainSetupValue {
 }
 
 export const interestOptions: Array<{ value: DayframeInterest; label: string; description: string }> = [
-  { value: 'train', label: 'Training', description: 'Workouts, programs and progress' },
+  { value: 'train', label: 'Workouts', description: 'Programs, sessions and progress' },
   { value: 'study', label: 'Study', description: 'Roadmaps, practice and review' },
   { value: 'health', label: 'Health & nutrition', description: 'Meals, recovery and biomarkers' },
   { value: 'life', label: 'Life', description: 'Goals, reminders and plans' },
@@ -18,7 +18,7 @@ export const interestOptions: Array<{ value: DayframeInterest; label: string; de
 ]
 
 const validInterests = new Set(interestOptions.map((item) => item.value))
-const defaultCategories: QuickCategory[] = ['Train', 'Study', 'Health', 'Life']
+const defaultCategories: QuickCategory[] = ['Workouts', 'Study', 'Health', 'Life']
 
 export function normalizeInterests(value: unknown): DayframeInterest[] {
   if (!Array.isArray(value)) return ['everything']
@@ -28,19 +28,19 @@ export function normalizeInterests(value: unknown): DayframeInterest[] {
 
 export function categoriesForInterests(interests: DayframeInterest[]): QuickCategory[] {
   if (interests.includes('everything') || interests.includes('exploring')) return defaultCategories
-  const mapping: Partial<Record<DayframeInterest, QuickCategory>> = { train: 'Train', study: 'Study', health: 'Health', life: 'Life' }
+  const mapping: Partial<Record<DayframeInterest, QuickCategory>> = { train: 'Workouts', study: 'Study', health: 'Health', life: 'Life' }
   const mapped = interests.map((interest) => mapping[interest]).filter(Boolean) as QuickCategory[]
   return [...new Set(mapped)]
 }
 
 export function focusCategories(interests: DayframeInterest[]): QuickCategory[] {
-  if (interests.includes('everything') || interests.includes('exploring')) return ['Train', 'Study']
+  if (interests.includes('everything') || interests.includes('exploring')) return ['Workouts', 'Study']
   return categoriesForInterests(interests)
 }
 
 export function rankQuickAddCategories(pathname: string, interests: DayframeInterest[], scheduledDomains: string[] = []): QuickCategory[] {
-  const route = pathname.startsWith('/train') ? 'Train' : pathname.startsWith('/study') ? 'Study' : pathname.startsWith('/life') ? 'Life' : pathname.startsWith('/nutrition') || pathname.startsWith('/health') ? 'Health' : undefined
-  const scheduled = scheduledDomains.map((domain) => domain === 'train' ? 'Train' : domain === 'study' ? 'Study' : undefined).filter(Boolean) as QuickCategory[]
+  const route = pathname.startsWith('/train') ? 'Workouts' : pathname.startsWith('/study') ? 'Study' : pathname.startsWith('/life') ? 'Life' : pathname.startsWith('/nutrition') || pathname.startsWith('/health') ? 'Health' : undefined
+  const scheduled = scheduledDomains.map((domain) => domain === 'train' ? 'Workouts' : domain === 'study' ? 'Study' : undefined).filter(Boolean) as QuickCategory[]
   return [...new Set([route, ...scheduled, ...categoriesForInterests(interests), ...defaultCategories].filter(Boolean) as QuickCategory[])]
 }
 

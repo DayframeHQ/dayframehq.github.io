@@ -4,7 +4,7 @@ type TemplateDomain = 'train' | 'study'
 
 const guideCopy = {
   train: {
-    eyebrow: 'How training templates work',
+    eyebrow: 'How workout templates work',
     title: 'A researched starting point—not a rigid prescription.',
     description: 'Dayframe turns established hypertrophy principles such as appropriate weekly volume, progressive overload, proximity to failure and recovery into a schedule you can actually follow. The catalog is informed by peer-reviewed research and public education from evidence-based communicators including Jeff Nippard and Andrew Huberman; they do not endorse or sponsor Dayframe.',
     choose: 'Tell us your goal, experience, available days and equipment. Exact day matches are ranked first.',
