@@ -20,6 +20,7 @@ export function useTemplates(domain: Domain) {
 }
 export function usePlans(domain?:Domain){const identity=useIdentity();useDemoInvalidation();return useQuery({queryKey:['v2','plans',domain,identity.isDemo],queryFn:()=>repo.listPlans(identity,domain)})}
 export function usePlannedSessions(from:string,to:string,domain?:Domain){const identity=useIdentity();useDemoInvalidation();return useQuery({queryKey:['v2','planned',domain,from,to,identity.isDemo],queryFn:()=>repo.listPlannedSessions(identity,from,to,domain)})}
+export function useDayTravelItems(date:string){const identity=useIdentity();useDemoInvalidation();return useQuery({queryKey:['v2','travel-items',date,identity.isDemo],queryFn:()=>repo.listDayTravelItems(identity,date)})}
 export function useStudySessions(from:string,to:string){const identity=useIdentity();useDemoInvalidation();return useQuery({queryKey:['v2','study-sessions',from,to,identity.isDemo],queryFn:()=>repo.listStudySessions(identity,from,to)})}
 export function useStudyNotes(){const identity=useIdentity();useDemoInvalidation();return useQuery({queryKey:['v2','notes',identity.isDemo],queryFn:()=>repo.listStudyNotes(identity)})}
 export function useStudyAttempts(from:string,to:string){const identity=useIdentity();useDemoInvalidation();return useQuery({queryKey:['v2','attempts',from,to,identity.isDemo],queryFn:()=>repo.listStudyAttempts(identity,from,to)})}

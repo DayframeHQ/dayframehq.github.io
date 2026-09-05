@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { allTemplates, studyTemplates, trainTemplates } from '../data/v2Templates'
 import { dateKey } from '../lib/v2'
 import { interviewBaseline, interviewResources, problemStatusForScore, revisionOffsets } from '../lib/interview'
+import type { TrainExerciseOption } from '../data/trainExerciseLibrary'
+import type { DayTravelItem } from '../lib/dayExport'
 import type { Domain, InterviewSubject, LearningResource, NutritionSummary, NutritionValues, Plan, PlannedItem, PlannedSession, PlanTemplate, ProblemStatus, StudyAttempt, StudyNote, StudyResult, StudySession } from '../types/v2'
 
 interface DemoV2 {
@@ -129,10 +131,28 @@ export async function listPlannedSessions(identity: RepoIdentity, from: string, 
   return (data ?? []).map((session) => ({ ...session, planned_items: (session.planned_items ?? []).sort((a: PlannedItem,b: PlannedItem) => a.position-b.position) })) as PlannedSession[]
 }
 
+export async function listDayTravelItems(identity:RepoIdentity,date:string):Promise<DayTravelItem[]> {
+  if(identity.isDemo)return[]
+  const start=new Date(`${date}T00:00:00`).toISOString();const end=new Date(`${date}T23:59:59.999`).toISOString()
+  const {data,error}=await clientFor(identity)!.from('travel_items').select('id,title,details,due_at,travel_plans(destination)').gte('due_at',start).lte('due_at',end).neq('completed',true).order('due_at')
+  if(error)throw new Error(error.message)
+  return(data??[]).map((item)=>{const plan=Array.isArray(item.travel_plans)?item.travel_plans[0]:item.travel_plans;return{id:item.id,title:item.title,details:item.details,due_at:item.due_at,destination:plan?.destination??null}})
+}
+
 export async function updatePlannedSession(identity: RepoIdentity, id: string, patch: Partial<Pick<PlannedSession,'status'|'scheduled_date'|'completed_at'>>) {
   if (identity.isDemo) { const state=readDemo(); writeDemo({ ...state, sessions: state.sessions.map((item)=>item.id===id?{...item,...patch}:item) }); return }
   const { error } = await clientFor(identity)!.from('planned_sessions').update(patch).eq('id', id)
   if (error) throw new Error(error.message)
+}
+
+export async function createQuickWorkoutSession(identity:RepoIdentity,input:{planId:string;scheduledDate:string;movements:TrainExerciseOption[]}){
+  if(!input.movements.length)throw new Error('Choose at least one movement.')
+  const sessionId=crypto.randomUUID();const estimatedMinutes=input.movements.reduce((sum,item)=>sum+(item.tracking==='duration'?(item.minutes??20):item.sets*3),0);const title=input.movements.length===1?input.movements[0].name:`Quick training · ${input.movements.length} movements`
+  const plannedItems:PlannedItem[]=input.movements.map((movement,index)=>({id:crypto.randomUUID(),planned_session_id:sessionId,domain:'train',item_type:'exercise',title:movement.name,position:index,estimated_minutes:movement.tracking==='duration'?movement.minutes:movement.sets*3,required:true,status:'planned',metadata:{quick_session:true,tracking_mode:movement.tracking,activity_type:movement.activityType,sets:movement.sets,rep_min:movement.repMin,rep_max:movement.repMax,duration_minutes:movement.minutes,target_rir:2}}))
+  if(identity.isDemo){const state=readDemo();const session:PlannedSession={id:sessionId,plan_id:input.planId,domain:'train',title,description:'Built from the Train quick-start movement library.',scheduled_date:input.scheduledDate,estimated_minutes:estimatedMinutes,status:'planned',planned_items:plannedItems};writeDemo({...state,sessions:[session,...state.sessions]});return session}
+  const client=clientFor(identity)!;const created=await client.from('planned_sessions').insert({user_id:identity.user!.id,plan_id:input.planId,domain:'train',title,description:'Built from the Train quick-start movement library.',scheduled_date:input.scheduledDate,estimated_minutes:estimatedMinutes,status:'planned'}).select('*').single();if(created.error)throw new Error(created.error.message)
+  const rows=plannedItems.map((item)=>({user_id:identity.user!.id,planned_session_id:created.data.id,domain:'train',item_type:'exercise',title:item.title,position:item.position,estimated_minutes:item.estimated_minutes,required:true,status:'planned',metadata:item.metadata}));const items=await client.from('planned_items').insert(rows).select('*').order('position');if(items.error){await client.from('planned_sessions').delete().eq('id',created.data.id);throw new Error(items.error.message)}
+  return{...created.data,planned_items:items.data??[]}as PlannedSession
 }
 
 export async function startStudySession(identity: RepoIdentity, planned: PlannedSession): Promise<StudySession> {
