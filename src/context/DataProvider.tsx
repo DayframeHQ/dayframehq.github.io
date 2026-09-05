@@ -164,8 +164,8 @@ export function DataProvider({ children }: PropsWithChildren) {
     updateSet: (exerciseId: string, setId: string, field: 'weight' | 'reps' | 'rir' | 'completed' | 'notes', next: number | boolean | string) => setData((current) => ({ ...current, workout: current.workout.map((exercise) => exercise.id !== exerciseId ? exercise : { ...exercise, sets: exercise.sets.map((item) => item.id === setId ? { ...item, [field]: next } : item) }) })),
     loadWorkoutFromPlan: async (items: Array<{ id: string; title: string; metadata: Record<string, unknown> }>, plannedSessionId?: string) => {
       const mapped: WorkoutExercise[] = items.map((item) => {
-        const sets = Number(item.metadata.sets ?? 3); const repMin = Number(item.metadata.rep_min ?? 8); const repMax = Number(item.metadata.rep_max ?? 12)
-        return { id: item.id, name: item.title, repRange: `${repMin}–${repMax} reps`, previous: 'No prior performance', sets: Array.from({ length: sets }, () => ({ id: crypto.randomUUID(), weight: 0, reps: repMin, rir: Number(item.metadata.target_rir ?? 2), completed: false, notes: '' })) }
+        const trackingMode=item.metadata.tracking_mode==='duration'?'duration':'sets_reps';const sets=trackingMode==='duration'?1:Number(item.metadata.sets??3);const repMin=trackingMode==='duration'?Number(item.metadata.duration_minutes??20):Number(item.metadata.rep_min??8);const repMax=trackingMode==='duration'?repMin:Number(item.metadata.rep_max??12)
+        return { id: item.id, name: item.title, trackingMode, activityType:String(item.metadata.activity_type??'other') as WorkoutExercise['activityType'], repRange: trackingMode==='duration'?`${repMin} min`:`${repMin}–${repMax} reps`, previous: 'No prior performance', sets: Array.from({ length: sets }, () => ({ id: crypto.randomUUID(), weight: 0, reps: repMin, rir: trackingMode==='duration'?0:Number(item.metadata.target_rir ?? 2), completed: false, notes: '' })) }
       })
       let initial = mapped
       if (plannedSessionId) {
@@ -180,6 +180,7 @@ export function DataProvider({ children }: PropsWithChildren) {
       if (!auth.isDemo && supabase && auth.user) {
         const client=supabase
         const enriched=await Promise.all(mapped.map(async(exercise)=>{
+          if(exercise.trackingMode==='duration')return exercise
           const searchName=exercise.name.split(/\s+\/\s+|\s+or\s+/i)[0]
           const {data:reference}=await client.from('exercises').select('id').ilike('name',searchName).limit(1).maybeSingle()
           if(!reference)return exercise
@@ -195,7 +196,8 @@ export function DataProvider({ children }: PropsWithChildren) {
     },
     saveWorkout: async (plannedSessionId?: string) => {
       const clearDraft = () => { if (plannedSessionId) localStorage.removeItem(workoutDraftKey(plannedSessionId)); setActiveWorkoutSessionId(null) }
-      if (auth.isDemo || !auth.user || !supabase) { clearDraft(); return }
+      if(auth.isDemo){const walkingMinutes=data.workout.filter((exercise)=>exercise.trackingMode==='duration'&&exercise.activityType==='walk').flatMap((exercise)=>exercise.sets).filter((set)=>set.completed).reduce((sum,set)=>sum+set.reps,0);if(walkingMinutes)setData((current)=>({...current,daily:{...current.daily,walkingMinutes:current.daily.walkingMinutes+walkingMinutes}}));clearDraft();return}
+      if(!auth.user||!supabase){clearDraft();return}
       const { data: session, error } = await supabase.from('workout_sessions').insert({ user_id: auth.user.id, planned_session_id: plannedSessionId ?? null, session_date: dateKey, started_at: new Date().toISOString(), completed_at: new Date().toISOString(), status: 'completed' }).select('id').single()
       if (error || !session) throw error ?? new Error('Could not create workout session')
       try {
@@ -205,8 +207,14 @@ export function DataProvider({ children }: PropsWithChildren) {
           if (!exerciseRow) { const created=await supabase.from('exercises').insert({user_id:auth.user.id,name:exercise.name,category:'Custom',is_system:false}).select('id').single();if(created.error)throw created.error;exerciseRow=created.data }
           const { data: log, error: logError } = await supabase.from('exercise_logs').insert({ user_id: auth.user.id, workout_session_id: session.id, exercise_id: exerciseRow.id, position: index }).select('id').single()
           if (logError || !log) throw logError ?? new Error(`Could not save ${exercise.name}`)
-          const rows = exercise.sets.filter((set) => set.completed).map((set, setIndex) => ({ user_id: auth.user!.id, exercise_log_id: log.id, set_number: setIndex + 1, weight: set.weight, reps: set.reps, rir: set.rir, notes: set.notes?.trim() || null, completed: true, performed_at: new Date().toISOString() }))
-          if (rows.length) { const { error: setError } = await supabase.from('set_logs').insert(rows); if (setError) throw setError }
+          const completed=exercise.sets.filter((set)=>set.completed)
+          if(exercise.trackingMode==='duration'){
+            const minutes=completed.reduce((sum,set)=>sum+set.reps,0)
+            if(minutes){const movementNotes=completed.map((set)=>set.notes?.trim()).filter(Boolean).join(' · ');const {error:activityError}=await supabase.from('activity_logs').insert({user_id:auth.user.id,activity_date:dateKey,activity_type:exercise.activityType??'other',duration_minutes:minutes,source_type:'manual',notes:[`Logged from Train · ${exercise.name}`,movementNotes].filter(Boolean).join(' · ')});if(activityError)throw activityError}
+          }else{
+            const rows=completed.map((set,setIndex)=>({user_id:auth.user!.id,exercise_log_id:log.id,set_number:setIndex+1,weight:set.weight,reps:set.reps,rir:set.rir,notes:set.notes?.trim()||null,completed:true,performed_at:new Date().toISOString()}))
+            if(rows.length){const {error:setError}=await supabase.from('set_logs').insert(rows);if(setError)throw setError}
+          }
         }
         if(plannedSessionId){const {error:plannedError}=await supabase.from('planned_sessions').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',plannedSessionId);if(plannedError)throw plannedError}
       } catch (saveError) {

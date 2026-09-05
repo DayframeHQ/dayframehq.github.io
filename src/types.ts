@@ -62,4 +62,6 @@ export interface WorkoutExercise {
   sets: SetLog[]
   repRange: string
   previous: string
+  trackingMode?: 'sets_reps' | 'duration'
+  activityType?: 'walk' | 'swim' | 'other'
 }
