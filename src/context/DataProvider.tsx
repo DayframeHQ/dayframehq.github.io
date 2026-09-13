@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type PropsWithChildren } fro
 import { format } from 'date-fns'
 import { DataContext } from './DataContext'
 import { demoGoals, demoMeals, demoReminders, demoTrips, demoWorkout } from '../data/demo'
-import type { DailyLog, Goal, MealEntry, Reminder, TravelPlan, WorkoutExercise } from '../types'
+import type { DailyLog, Goal, MealEntry, Reminder, TravelPlan, WorkoutExercise, WorkoutHistoryEntry, WorkoutPrescriptionItem } from '../types'
 import { useAuth } from './AuthContext'
 import { supabase } from '../lib/supabase'
 import { flushQueuedWrites, queueWrite } from '../lib/offline'
@@ -17,10 +17,16 @@ interface StoredData {
   goals: Goal[]
   trips: TravelPlan[]
   workout: WorkoutExercise[]
+  workoutHistory: WorkoutHistoryEntry[]
 }
 
-const demoDefaults: StoredData = { daily: demoDaily, meals: demoMeals, reminders: demoReminders, goals: demoGoals, trips: demoTrips, workout: demoWorkout }
-const cleanDefaults: StoredData = { daily: emptyDaily, meals: [], reminders: [], goals: [], trips: [], workout: [] }
+const demoDefaults: StoredData = { daily: demoDaily, meals: demoMeals, reminders: demoReminders, goals: demoGoals, trips: demoTrips, workout: demoWorkout, workoutHistory: [] }
+const cleanDefaults: StoredData = { daily: emptyDaily, meals: [], reminders: [], goals: [], trips: [], workout: [], workoutHistory: [] }
+
+function workoutFromItem(item: WorkoutPrescriptionItem, sessionAdded = false): WorkoutExercise {
+  const trackingMode=item.metadata.tracking_mode==='duration'?'duration':'sets_reps';const sets=trackingMode==='duration'?1:Number(item.metadata.sets??3);const repMin=trackingMode==='duration'?Number(item.metadata.duration_minutes??20):Number(item.metadata.rep_min??8);const repMax=trackingMode==='duration'?repMin:Number(item.metadata.rep_max??12)
+  return { id:item.id, name:item.title, trackingMode, activityType:String(item.metadata.activity_type??'other') as WorkoutExercise['activityType'], repRange:trackingMode==='duration'?`${repMin} min`:`${repMin}–${repMax} reps`, previous:sessionAdded?'Added for this workout':'No prior performance', sessionAdded, sets:Array.from({length:sets},()=>({id:crypto.randomUUID(),weight:0,reps:repMin,rir:trackingMode==='duration'?0:Number(item.metadata.target_rir??2),completed:false,notes:''})) }
+}
 
 function loadDemo(): StoredData {
   try {
@@ -162,11 +168,8 @@ export function DataProvider({ children }: PropsWithChildren) {
       void persist('travel_plans', { id: item.id, destination, country, status: 'Wishlist' })
     },
     updateSet: (exerciseId: string, setId: string, field: 'weight' | 'reps' | 'rir' | 'completed' | 'notes', next: number | boolean | string) => setData((current) => ({ ...current, workout: current.workout.map((exercise) => exercise.id !== exerciseId ? exercise : { ...exercise, sets: exercise.sets.map((item) => item.id === setId ? { ...item, [field]: next } : item) }) })),
-    loadWorkoutFromPlan: async (items: Array<{ id: string; title: string; metadata: Record<string, unknown> }>, plannedSessionId?: string) => {
-      const mapped: WorkoutExercise[] = items.map((item) => {
-        const trackingMode=item.metadata.tracking_mode==='duration'?'duration':'sets_reps';const sets=trackingMode==='duration'?1:Number(item.metadata.sets??3);const repMin=trackingMode==='duration'?Number(item.metadata.duration_minutes??20):Number(item.metadata.rep_min??8);const repMax=trackingMode==='duration'?repMin:Number(item.metadata.rep_max??12)
-        return { id: item.id, name: item.title, trackingMode, activityType:String(item.metadata.activity_type??'other') as WorkoutExercise['activityType'], repRange: trackingMode==='duration'?`${repMin} min`:`${repMin}–${repMax} reps`, previous: 'No prior performance', sets: Array.from({ length: sets }, () => ({ id: crypto.randomUUID(), weight: 0, reps: repMin, rir: trackingMode==='duration'?0:Number(item.metadata.target_rir ?? 2), completed: false, notes: '' })) }
-      })
+    loadWorkoutFromPlan: async (items: WorkoutPrescriptionItem[], plannedSessionId?: string) => {
+      const mapped: WorkoutExercise[] = items.map((item) => workoutFromItem(item))
       let initial = mapped
       if (plannedSessionId) {
         try {
@@ -190,27 +193,29 @@ export function DataProvider({ children }: PropsWithChildren) {
         setData((current)=>({...current,workout:enriched}))
       }
     },
+    addWorkoutExercises: (items: WorkoutPrescriptionItem[]) => setData((current)=>({...current,workout:[...current.workout,...items.map((item)=>workoutFromItem(item,true))]})),
     copyStarterTemplate: () => {
       setData((current) => ({ ...current, workout: demoWorkout.map((exercise) => ({ ...exercise, sets: exercise.sets.map((item) => ({ ...item })) })) }))
       void persist('workout_programs', { name: '4-Day Recomp — Upper/Lower', description: 'Copied from the public Dayframe template', is_active: true, start_date: dateKey })
     },
-    saveWorkout: async (plannedSessionId?: string) => {
+    saveWorkout: async (plannedSessionId?: string, plannedTitle?: string) => {
       const clearDraft = () => { if (plannedSessionId) localStorage.removeItem(workoutDraftKey(plannedSessionId)); setActiveWorkoutSessionId(null) }
-      if(auth.isDemo){const walkingMinutes=data.workout.filter((exercise)=>exercise.trackingMode==='duration'&&exercise.activityType==='walk').flatMap((exercise)=>exercise.sets).filter((set)=>set.completed).reduce((sum,set)=>sum+set.reps,0);if(walkingMinutes)setData((current)=>({...current,daily:{...current.daily,walkingMinutes:current.daily.walkingMinutes+walkingMinutes}}));clearDraft();return}
+      if(auth.isDemo){const completedExercises=data.workout.map((exercise,index)=>{const completed=exercise.sets.filter((set)=>set.completed);if(!completed.length)return null;const minutes=exercise.trackingMode==='duration'?completed.reduce((sum,set)=>sum+set.reps,0):0;return{id:crypto.randomUUID(),position:index,notes:[exercise.sessionAdded?'Added during workout':'',minutes?`${minutes} min`: '',...completed.map((set)=>set.notes?.trim()).filter(Boolean)].filter(Boolean).join(' · ')||null,exercises:{name:exercise.name,category:exercise.sessionAdded?'Session addition':'Program'},set_logs:exercise.trackingMode==='duration'?[]:completed.map((set,setIndex)=>({id:crypto.randomUUID(),set_number:setIndex+1,weight:set.weight,weight_unit:'kg',reps:set.reps,rir:set.rir,completed:true,notes:set.notes??null,performed_at:new Date().toISOString()}))}}).filter(Boolean) as WorkoutHistoryEntry['exercise_logs'];const history:WorkoutHistoryEntry={id:crypto.randomUUID(),planned_session_id:plannedSessionId??null,session_date:dateKey,started_at:new Date().toISOString(),completed_at:new Date().toISOString(),status:'completed',planned_sessions:{title:plannedTitle??'Completed workout'},exercise_logs:completedExercises};const walkingMinutes=data.workout.filter((exercise)=>exercise.trackingMode==='duration'&&exercise.activityType==='walk').flatMap((exercise)=>exercise.sets).filter((set)=>set.completed).reduce((sum,set)=>sum+set.reps,0);const nextData={...data,daily:walkingMinutes?{...data.daily,walkingMinutes:data.daily.walkingMinutes+walkingMinutes}:data.daily,workoutHistory:[history,...data.workoutHistory]};setData(nextData);localStorage.setItem('dayframe_demo_data',JSON.stringify(nextData));window.dispatchEvent(new Event('dayframe-v2-demo-change'));clearDraft();return}
       if(!auth.user||!supabase){clearDraft();return}
       const { data: session, error } = await supabase.from('workout_sessions').insert({ user_id: auth.user.id, planned_session_id: plannedSessionId ?? null, session_date: dateKey, started_at: new Date().toISOString(), completed_at: new Date().toISOString(), status: 'completed' }).select('id').single()
       if (error || !session) throw error ?? new Error('Could not create workout session')
       try {
         for (const [index, exercise] of data.workout.entries()) {
+          const completed=exercise.sets.filter((set)=>set.completed)
+          if(!completed.length)continue
           const searchName=exercise.name.split(/\s+\/\s+|\s+or\s+/i)[0]
           let { data: exerciseRow } = await supabase.from('exercises').select('id').ilike('name', searchName).limit(1).maybeSingle()
           if (!exerciseRow) { const created=await supabase.from('exercises').insert({user_id:auth.user.id,name:exercise.name,category:'Custom',is_system:false}).select('id').single();if(created.error)throw created.error;exerciseRow=created.data }
-          const { data: log, error: logError } = await supabase.from('exercise_logs').insert({ user_id: auth.user.id, workout_session_id: session.id, exercise_id: exerciseRow.id, position: index }).select('id').single()
+          const minutes=exercise.trackingMode==='duration'?completed.reduce((sum,set)=>sum+set.reps,0):0;const movementNotes=completed.map((set)=>set.notes?.trim()).filter(Boolean).join(' · ');const logNotes=[exercise.sessionAdded?'Added during workout':'',minutes?`${minutes} min`:'',movementNotes].filter(Boolean).join(' · ')||null
+          const { data: log, error: logError } = await supabase.from('exercise_logs').insert({ user_id: auth.user.id, workout_session_id: session.id, exercise_id: exerciseRow.id, position: index, notes:logNotes }).select('id').single()
           if (logError || !log) throw logError ?? new Error(`Could not save ${exercise.name}`)
-          const completed=exercise.sets.filter((set)=>set.completed)
           if(exercise.trackingMode==='duration'){
-            const minutes=completed.reduce((sum,set)=>sum+set.reps,0)
-            if(minutes){const movementNotes=completed.map((set)=>set.notes?.trim()).filter(Boolean).join(' · ');const {error:activityError}=await supabase.from('activity_logs').insert({user_id:auth.user.id,activity_date:dateKey,activity_type:exercise.activityType??'other',duration_minutes:minutes,source_type:'manual',notes:[`Logged from Workouts · ${exercise.name}`,movementNotes].filter(Boolean).join(' · ')});if(activityError)throw activityError}
+            if(minutes){const {error:activityError}=await supabase.from('activity_logs').insert({user_id:auth.user.id,activity_date:dateKey,activity_type:exercise.activityType??'other',duration_minutes:minutes,source_type:'manual',notes:[`Logged from Workouts · ${exercise.name}`,movementNotes].filter(Boolean).join(' · ')});if(activityError)throw activityError}
           }else{
             const rows=completed.map((set,setIndex)=>({user_id:auth.user!.id,exercise_log_id:log.id,set_number:setIndex+1,weight:set.weight,reps:set.reps,rir:set.rir,notes:set.notes?.trim()||null,completed:true,performed_at:new Date().toISOString()}))
             if(rows.length){const {error:setError}=await supabase.from('set_logs').insert(rows);if(setError)throw setError}
@@ -223,7 +228,7 @@ export function DataProvider({ children }: PropsWithChildren) {
       }
       clearDraft()
     },
-    resetDemo: () => setData({ ...demoDefaults, daily: { ...demoDaily }, meals: [...demoMeals], reminders: [...demoReminders], goals: [...demoGoals], trips: [...demoTrips], workout: demoWorkout.map((exercise) => ({ ...exercise, sets: exercise.sets.map((item) => ({ ...item })) })) }),
+    resetDemo: () => setData({ ...demoDefaults, daily: { ...demoDaily }, meals: [...demoMeals], reminders: [...demoReminders], goals: [...demoGoals], trips: [...demoTrips], workout: demoWorkout.map((exercise) => ({ ...exercise, sets: exercise.sets.map((item) => ({ ...item })) })), workoutHistory: [] }),
   }), [auth.isDemo, auth.user, data, dateKey, persist, selectedDate, syncPending, workoutDraftKey])
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>

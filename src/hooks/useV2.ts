@@ -33,6 +33,7 @@ export function useNutritionSummary(date:string){const identity=useIdentity();us
 export function useNutritionPreferences(){const identity=useIdentity();return useQuery({queryKey:['v2','nutrition-preferences',identity.isDemo],queryFn:()=>repo.getNutritionPreferences(identity)})}
 export function useRecipes(){const identity=useIdentity();return useQuery({queryKey:['v2','recipes',identity.isDemo],queryFn:()=>repo.listRecipes(identity)})}
 export function useProgressData(from:string,to:string){const identity=useIdentity();useDemoInvalidation();return useQuery({queryKey:['v2','progress',from,to,identity.isDemo],queryFn:()=>repo.getProgressData(identity,from,to)})}
+export function useWorkoutHistory(){const identity=useIdentity();useDemoInvalidation();return useQuery({queryKey:['v2','workout-history',identity.isDemo],queryFn:()=>repo.listWorkoutHistory(identity)})}
 export function useLifeExtended(){const identity=useIdentity();useDemoInvalidation();return useQuery({queryKey:['v2','life',identity.isDemo],queryFn:()=>repo.listLifeExtended(identity)})}
 
 export function useCopyTemplate(){const identity=useIdentity();const client=useQueryClient();return useMutation({mutationFn:({template,startDate}:{template:PlanTemplate;startDate:string})=>repo.copyTemplate(identity,template,startDate),onSuccess:()=>void client.invalidateQueries({queryKey:['v2']})})}

@@ -11,7 +11,7 @@ import { usePersonalization } from '../hooks/usePersonalization'
 import { InterviewRoadmap, InterviewToday } from '../components/InterviewStudyOS'
 import { canonicalStartForTemplate, isInterviewRoadmap, resourceHref } from '../lib/interview'
 
-type View = 'templates' | 'today' | 'roadmap' | 'notebook' | 'resources'
+type View = 'templates' | 'today' | 'roadmap' | 'history' | 'notebook' | 'resources'
 
 export function StudyPage() {
   const [view,setView]=useState<View>('templates')
@@ -28,7 +28,7 @@ export function StudyPage() {
   const legacyInterview=Boolean(activePlan?.template_id==='10000000-0000-4000-8000-000000000106'&&!interviewMode)
   const current=weekSessions.find((item)=>item.scheduled_date===today&&item.status!=='completed') ?? weekSessions.find((item)=>item.status==='active') ?? weekSessions.find((item)=>item.status==='planned')
   const currentView=activePlan&&view==='templates'?'today':view
-  const tabs:View[]=activePlan?['today','roadmap','notebook','resources']:['templates','today','roadmap','notebook','resources']
+  const tabs:View[]=activePlan?['today','roadmap','history','notebook','resources']:['templates','today','roadmap','history','notebook','resources']
 
   return <div className="page">
     <header className="page-header"><div><p className="eyebrow">Study</p><h1>Build knowledge that holds.</h1><p className="muted">Follow a roadmap, practise deliberately, and keep the evidence.</p></div></header>
@@ -38,6 +38,7 @@ export function StudyPage() {
       {currentView==='templates'&&!activePlan&&<StudyTemplates/>}
       {currentView==='today'&&(interviewMode&&activePlan?<InterviewToday plan={activePlan} sessions={activeRoadmapSessions} selectedDate={today} onOpenRoadmap={()=>setView('roadmap')}/>:<StudyToday activePlan={activePlan} current={current} sessions={weekSessions} onStarted={(study,planned)=>{setActive(study);setActivePlanSession(planned)}}/>)}
       {currentView==='roadmap'&&(interviewMode&&activePlan?<InterviewRoadmap plan={activePlan} sessions={activeRoadmapSessions} selectedDate={today} onReset={()=>setView('templates')}/>:<Roadmap plan={activePlan} sessions={activeRoadmapSessions} onReset={()=>setView('templates')}/>)}
+      {currentView==='history'&&<StudyHistory sessions={activeRoadmapSessions}/>}
       {currentView==='notebook'&&<Notebook planId={activePlan?.id}/>}
       {currentView==='resources'&&<Resources/>}
     </>}
@@ -102,6 +103,8 @@ function Roadmap({plan,sessions,onReset}:{plan?:{id:string;name:string;start_dat
   if(!plan)return <div className="empty-state card section"><BookOpen size={28}/><h2>Choose a roadmap first</h2><p>Open Templates to preview and copy a curated plan.</p></div>
   return <section className="section"><article className="card card-pad"><p className="eyebrow">Active roadmap</p><h2>{plan.name}</h2><div className="row-between"><span className="muted small">{complete} of {sessions.length} roadmap sessions</span><strong>{percent}%</strong></div><div className="progress-track"><div className="progress-fill" style={{width:`${percent}%`}}/></div><button className="btn btn-ghost btn-small section" onClick={()=>setConfirmReset(true)}><RotateCcw size={15}/>Choose a different template</button></article>{confirmReset&&<article className="card card-pad section reset-template-card"><p className="eyebrow">Reset active template?</p><h2>Your learning evidence stays safe.</h2><p className="muted small">Dayframe will archive this roadmap and its remaining schedule, then show Templates again. Completed sessions, attempts and notes are preserved.</p><div className="row progressive-actions"><button className="btn btn-primary" disabled={reset.isPending} onClick={()=>reset.mutate(undefined,{onSuccess:onReset})}>{reset.isPending?'Resetting…':'Archive and choose again'}</button><button className="btn btn-ghost" disabled={reset.isPending} onClick={()=>setConfirmReset(false)}>Keep current roadmap</button></div>{reset.error&&<p className="field-error">{reset.error.message}</p>}</article>}<div className="plan-list section">{sessions.map((item)=><article className="card card-pad" key={item.id}><div className="row-between"><div><span className="tiny muted">{format(new Date(`${item.scheduled_date}T12:00:00`),'EEEE, MMM d')}</span><h3>{item.title}</h3><span className="tiny muted">{item.estimated_minutes} min · {item.planned_items?.length??0} tasks</span></div><span className="badge badge-neutral">{item.status.replace('_',' ')}</span></div>{item.status==='planned'&&<div className="row" style={{marginTop:10}}><button className="btn btn-ghost btn-small" onClick={()=>change.mutate({id:item.id,status:'skipped'})}>Skip</button><button className="btn btn-secondary btn-small" onClick={()=>change.mutate({id:item.id,scheduled_date:dateKey(addDays(new Date(`${item.scheduled_date}T12:00:00`),1))})}>Move +1 day</button></div>}</article>)}</div><p className="muted small section">Missed work can be rescheduled or skipped without a punitive streak. The public template remains unchanged.</p></section>
 }
+
+function StudyHistory({sessions}:{sessions:PlannedSession[]}){const completed=sessions.flatMap((session)=>(session.planned_items??[]).filter((item)=>item.status==='completed').map((item)=>({item,session}))).sort((a,b)=>String(b.item.completed_at??b.session.scheduled_date).localeCompare(String(a.item.completed_at??a.session.scheduled_date)));return <section className="section"><div className="section-title"><div><p className="eyebrow">Study history</p><h2>Completed topics</h2><p className="muted small">Every topic you mark done stays visible here as learning evidence.</p></div><span className="badge">{completed.length} complete</span></div><div className="plan-list">{completed.map(({item,session})=><article className="card card-pad study-history-item" key={item.id}><div className="row-between"><div><span className="tiny muted">{format(new Date(`${session.scheduled_date}T12:00:00`),'MMM d, yyyy')} · {item.item_type.replaceAll('_',' ')}</span><h3>{item.title}</h3><p className="tiny muted">{session.title}</p></div><div className="study-history-status"><Check size={16}/><span>Done</span></div></div>{item.score!==null&&item.score!==undefined&&<span className="badge section">Score {item.score}/3</span>}</article>)}{!completed.length&&<div className="card empty-state"><BookOpen size={26}/><h2>No completed topics yet</h2><p>Mark a study topic done and it will appear here automatically.</p></div>}</div></section>}
 
 function Notebook({planId}:{planId?:string}){
   const notes=useStudyNotes();const identity=useIdentity();const add=useV2Mutation((_identity:typeof identity,input:{plan_id?:string;note_type:StudyNote['note_type'];title:string;content:string})=>addStudyNote(_identity,input));const remove=useV2Mutation((_identity:typeof identity,id:string)=>deleteStudyNote(_identity,id));const [query,setQuery]=useState('');const [filter,setFilter]=useState<'all'|StudyNote['note_type']>('all')

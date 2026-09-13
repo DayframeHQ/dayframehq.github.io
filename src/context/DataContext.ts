@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { DailyLog, Goal, MealEntry, Reminder, TravelPlan, WorkoutExercise } from '../types'
+import type { DailyLog, Goal, MealEntry, Reminder, TravelPlan, WorkoutExercise, WorkoutPrescriptionItem } from '../types'
 
 export interface DataState {
   selectedDate: Date
@@ -18,9 +18,10 @@ export interface DataState {
   addGoal: (title: string, category: string) => void
   addTrip: (destination: string, country: string) => void
   updateSet: (exerciseId: string, setId: string, field: 'weight' | 'reps' | 'rir' | 'completed' | 'notes', value: number | boolean | string) => void
-  loadWorkoutFromPlan: (items: Array<{ id: string; title: string; metadata: Record<string, unknown> }>, plannedSessionId?: string) => Promise<void>
+  loadWorkoutFromPlan: (items: WorkoutPrescriptionItem[], plannedSessionId?: string) => Promise<void>
+  addWorkoutExercises: (items: WorkoutPrescriptionItem[]) => void
   copyStarterTemplate: () => void
-  saveWorkout: (plannedSessionId?: string) => Promise<void>
+  saveWorkout: (plannedSessionId?: string, plannedTitle?: string) => Promise<void>
   resetDemo: () => void
 }
 

@@ -6,6 +6,7 @@ import { interviewBaseline, interviewResources, problemStatusForScore, revisionO
 import type { TrainExerciseOption } from '../data/trainExerciseLibrary'
 import type { DayTravelItem } from '../lib/dayExport'
 import type { Domain, InterviewSubject, LearningResource, NutritionSummary, NutritionValues, Plan, PlannedItem, PlannedSession, PlanTemplate, ProblemStatus, StudyAttempt, StudyNote, StudyResult, StudySession } from '../types/v2'
+import type { WorkoutHistoryEntry } from '../types'
 
 interface DemoV2 {
   plans: Plan[]
@@ -203,11 +204,12 @@ export async function updateStudyNote(identity:RepoIdentity,id:string,content:st
 }
 
 export async function addStudyAttempt(identity: RepoIdentity,input:{session:StudySession;item:PlannedItem;result:StudyResult;duration_seconds:number;confidence_after:number;what_i_missed:string}){
-  if(identity.isDemo){const state=readDemo();const attempt:StudyAttempt={id:crypto.randomUUID(),study_session_id:input.session.id,study_task_id:input.item.study_task_id??crypto.randomUUID(),result:input.result,duration_seconds:input.duration_seconds,confidence_after:input.confidence_after,what_i_missed:input.what_i_missed,created_at:new Date().toISOString()};writeDemo({...state,attempts:[attempt,...state.attempts],sessions:state.sessions.map((session)=>({...session,planned_items:session.planned_items?.map((item)=>item.id===input.item.id?{...item,status:'completed'}:item)}))});return attempt}
+  const completedAt=new Date().toISOString()
+  if(identity.isDemo){const state=readDemo();const attempt:StudyAttempt={id:crypto.randomUUID(),study_session_id:input.session.id,study_task_id:input.item.study_task_id??crypto.randomUUID(),result:input.result,duration_seconds:input.duration_seconds,confidence_after:input.confidence_after,what_i_missed:input.what_i_missed,created_at:completedAt};writeDemo({...state,attempts:[attempt,...state.attempts],sessions:state.sessions.map((session)=>({...session,planned_items:session.planned_items?.map((item)=>item.id===input.item.id?{...item,status:'completed',completed_at:completedAt}:item)}))});return attempt}
   const client=clientFor(identity)!
   let taskId=input.item.study_task_id
-  if(!taskId){const {data,error}=await client.from('study_tasks').insert({user_id:identity.user!.id,is_system:false,task_type:input.item.item_type==='problem'?'problem':'custom',title:input.item.title}).select('id').single();if(error)throw new Error(error.message);taskId=data.id;await client.from('planned_items').update({study_task_id:taskId,status:'completed'}).eq('id',input.item.id)}
-  else await client.from('planned_items').update({status:'completed'}).eq('id',input.item.id)
+  if(!taskId){const {data,error}=await client.from('study_tasks').insert({user_id:identity.user!.id,is_system:false,task_type:input.item.item_type==='problem'?'problem':'custom',title:input.item.title}).select('id').single();if(error)throw new Error(error.message);taskId=data.id;await client.from('planned_items').update({study_task_id:taskId,status:'completed',completed_at:completedAt}).eq('id',input.item.id)}
+  else await client.from('planned_items').update({status:'completed',completed_at:completedAt}).eq('id',input.item.id)
   const {data,error}=await client.from('study_attempts').insert({user_id:identity.user!.id,study_session_id:input.session.id,study_task_id:taskId,result:input.result,duration_seconds:input.duration_seconds,confidence_after:input.confidence_after,what_i_missed:input.what_i_missed}).select('*').single()
   if(error)throw new Error(error.message);return data as StudyAttempt
 }
@@ -329,6 +331,13 @@ export async function getProgressData(identity:RepoIdentity,from:string,to:strin
   const error=[planned,studySessions,attempts,workouts,body,activity].find((item)=>item.error)?.error;if(error)throw new Error(error.message)
   const workoutRows=workouts.data??[]
   return{planned:(planned.data??[])as PlannedSession[],studySessions:(studySessions.data??[])as StudySession[],attempts:(attempts.data??[])as StudyAttempt[],workouts:workoutRows as ProgressData['workouts'],sets:workoutRows.flatMap((workout)=>workout.exercise_logs??[]).flatMap((log:Record<string,unknown>)=>(log.set_logs??[]) as ProgressData['sets']),body:body.data??[],activity:activity.data??[]}
+}
+
+export async function listWorkoutHistory(identity:RepoIdentity):Promise<WorkoutHistoryEntry[]>{
+  if(identity.isDemo){try{return((JSON.parse(localStorage.getItem('dayframe_demo_data')??'{}')as{workoutHistory?:WorkoutHistoryEntry[]}).workoutHistory??[]).sort((a,b)=>String(b.completed_at??b.session_date).localeCompare(String(a.completed_at??a.session_date)))}catch{return[]}}
+  const client=clientFor(identity)!;const rows:WorkoutHistoryEntry[]=[];const pageSize=500
+  for(let from=0;;from+=pageSize){const{data,error}=await client.from('workout_sessions').select('*, planned_sessions(title), exercise_logs(*, exercises(name,category), set_logs(*))').order('session_date',{ascending:false}).order('created_at',{ascending:false}).range(from,from+pageSize-1);if(error)throw new Error(error.message);rows.push(...((data??[])as WorkoutHistoryEntry[]));if((data??[]).length<pageSize)break}
+  return rows
 }
 
 const demoLifeKey='dayframe_v2_demo_life'
