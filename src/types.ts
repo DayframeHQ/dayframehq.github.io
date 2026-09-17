@@ -64,4 +64,43 @@ export interface WorkoutExercise {
   previous: string
   trackingMode?: 'sets_reps' | 'duration'
   activityType?: 'walk' | 'swim' | 'other'
+  sessionAdded?: boolean
+}
+
+export interface WorkoutPrescriptionItem {
+  id: string
+  title: string
+  metadata: Record<string, unknown>
+}
+
+export interface WorkoutHistorySet {
+  id: string
+  set_number: number
+  weight: number | null
+  weight_unit: string
+  reps: number | null
+  rir: number | null
+  completed: boolean
+  notes?: string | null
+  performed_at?: string | null
+}
+
+export interface WorkoutHistoryExercise {
+  id: string
+  position: number
+  notes?: string | null
+  exercises?: { name: string; category?: string | null } | Array<{ name: string; category?: string | null }> | null
+  set_logs?: WorkoutHistorySet[]
+}
+
+export interface WorkoutHistoryEntry {
+  id: string
+  planned_session_id?: string | null
+  session_date: string
+  started_at?: string | null
+  completed_at?: string | null
+  status: string
+  notes?: string | null
+  planned_sessions?: { title: string } | Array<{ title: string }> | null
+  exercise_logs?: WorkoutHistoryExercise[]
 }
